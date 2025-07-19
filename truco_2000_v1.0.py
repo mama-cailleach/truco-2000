@@ -17,6 +17,11 @@ class TrucoGame:
         self.player_starts_hand = True  # Player starts the first hand
         self.player_starts_round = True  # Player starts the first round in a hand
 
+        # Truco state tracking
+        self.current_hand_value = 1  # Current value of the hand (1, 3, 6, 9, 12)
+        self.last_raiser = None  # Who made the last raise ("Jogador" or "Oponente")
+        self.truco_names = {1: "Normal", 3: "Truco", 6: "Retruco", 9: "Vale 9", 12: "Vale 12"}
+
         # UI elements
         self.ursinho = r'''
    _     _   
@@ -117,6 +122,114 @@ class TrucoGame:
             else:
                 print("Por favor, responda com 's' para sim ou 'n' para não.")
 
+    def get_truco_response(self, current_value, raiser):
+        """
+        Gets the player's response to a truco call: run, accept, or reraise
+        
+        Args:
+            current_value (int): Current value being proposed (3, 6, 9, 12)
+            raiser (str): Who made the truco call ("Oponente")
+        
+        Returns:
+            str: 'run', 'accept', or 'reraise'
+        """
+        next_value = current_value + 3
+        can_reraise = next_value <= 12
+        
+        print(f"Oponente pediu {self.truco_names[current_value]} (vale {current_value} pontos)")
+        
+        valid_options = ['f', 'a']  # fugir, aceitar
+        prompt = "F: Fugir, A: Aceitar"
+        
+        if can_reraise:
+            valid_options.append('r')
+            prompt += f", R: {self.truco_names[next_value]} (vale {next_value})"
+        
+        prompt += ": "
+        
+        choice = self.get_valid_input(prompt, valid_options)
+        
+        if choice == 'f':
+            return 'run'
+        elif choice == 'a':
+            return 'accept'
+        elif choice == 'r':
+            return 'reraise'
+
+    def get_opponent_truco_response(self, current_value):
+        """
+        Gets the opponent's response to a truco call (random for now)
+        
+        Args:
+            current_value (int): Current value being proposed
+        
+        Returns:
+            str: 'run', 'accept', or 'reraise'
+        """
+        next_value = current_value + 3
+        can_reraise = next_value <= 12
+        
+        if can_reraise:
+            # Random choice between all three options
+            return random.choice(['run', 'accept', 'reraise'])
+        else:
+            # Can only run or accept at max value
+            return random.choice(['run', 'accept'])
+
+    def handle_truco_sequence(self, initiator, current_value=3, mao_do_jogador=None):
+        """
+        Handles a complete truco sequence until someone accepts or runs
+        
+        Args:
+            initiator (str): Who started the truco ("Jogador" or "Oponente")
+            current_value (int): Starting value of the truco
+            mao_do_jogador (list): Player's hand for display purposes
+        
+        Returns:
+            tuple: (accepted, final_value, who_ran, final_raiser)
+        """
+        raiser = initiator
+        value = current_value
+        
+        while value <= 12:
+            if raiser == "Oponente":
+                # Player responds to opponent's truco/reraise
+                if mao_do_jogador:  # Only show hand if provided
+                    self.exibir_mao(mao_do_jogador)
+                response = self.get_truco_response(value, raiser)
+                
+                if response == 'run':
+                    print(f"Você correu do {self.truco_names[value]}!")
+                    return False, value, "Jogador", raiser
+                elif response == 'accept':
+                    print(f"Você aceitou o {self.truco_names[value]}! Agora vale {value} pontos.")
+                    return True, value, None, raiser
+                elif response == 'reraise':
+                    value += 3
+                    raiser = "Jogador"
+                    print(f"Você pediu {self.truco_names[value]}!")
+                    if value > 12:
+                        break
+            else:
+                # Opponent responds to player's truco/reraise
+                response = self.get_opponent_truco_response(value)
+                
+                if response == 'run':
+                    print(f"Oponente correu do {self.truco_names[value]}!")
+                    return False, value, "Oponente", raiser
+                elif response == 'accept':
+                    print(f"Oponente aceitou o {self.truco_names[value]}! Agora vale {value} pontos.")
+                    return True, value, None, raiser
+                elif response == 'reraise':
+                    value += 3
+                    raiser = "Oponente"
+                    print(f"Oponente pediu {self.truco_names[value]}!")
+                    if value > 12:
+                        break
+        
+        # Should never reach here, but safety fallback
+        return True, value, None, raiser
+
     def determinar_manilha(self):
         """
         Determina a carta "vira" e a manilha correspondente.
@@ -179,7 +292,7 @@ class TrucoGame:
             print(f"{i + 1}:")
             print(carta_ascii)
 
-    def get_card_choice(self, mao, allow_truco=True, allow_fugir=True):
+    def get_card_choice(self, mao, allow_truco=True, allow_fugir=True, current_hand_value=1, last_raiser=None):
         """
         Gets a valid card choice from the player.
 
@@ -187,22 +300,35 @@ class TrucoGame:
             mao (list): The player's hand
             allow_truco (bool): Whether to allow the "truco" option
             allow_fugir (bool): Whether to allow the "fugir" option
+            current_hand_value (int): Current value of the hand
+            last_raiser (str): Who made the last raise
 
         Returns:
             str: The validated choice (number as string, 't', or 'f')
         """
         valid_options = [str(i + 1) for i in range(len(mao))]
 
-        if allow_truco:
+        # Check if player can call truco/reraise
+        # Reset restrictions if current hand value is 1 (no active truco)
+        can_truco = (allow_truco and
+                     current_hand_value < 12 and
+                     (current_hand_value == 1 or last_raiser != "Jogador"))
+
+        if can_truco:
             valid_options.append('t')
-            print("T: Truco")
+            next_value = current_hand_value + 3 if current_hand_value > 1 else 3
+            print(f"T: {self.truco_names[next_value]}")
+        elif allow_truco and current_hand_value > 1 and last_raiser == "Jogador":
+            print("(Você já pediu o último truco/reraise desta mão)")
+
         if allow_fugir:
             valid_options.append('f')
             print("F: Fugir")
 
         prompt_options = ""
-        if allow_truco:
-            prompt_options += ", T (Truco)"
+        if can_truco:
+            next_value = current_hand_value + 3 if current_hand_value > 1 else 3
+            prompt_options += f", T ({self.truco_names[next_value]})"
         if allow_fugir:
             prompt_options += ", F (Fugir)"
 
@@ -317,6 +443,10 @@ class TrucoGame:
         """Plays one hand of the game"""
         self.reiniciar_baralho()
 
+        # Reset truco state for new hand
+        self.current_hand_value = 1
+        self.last_raiser = None
+
         # Reset who starts each round for this hand - based on who won the last hand
         self.player_starts_round = self.player_starts_hand
 
@@ -343,38 +473,53 @@ class TrucoGame:
         vitorias_jogador = 0
         vitorias_oponente = 0
 
-        # Verifica se truco foi usado
-        truco_ladrao = False
-        player_ran_from_truco = False  # Flag to track if player ran from truco
-        opponent_ran_from_truco = False  # Flag to track if opponent ran from truco
-
         for rodada in range(3):
             # Play a single round
             resultado = self.jogar_rodada(rodada, mao_do_jogador, mao_do_oponente,
-                                          manilha, resultados_rodadas, primeira_vitoria,
-                                          truco_ladrao, self.player_starts_round)
+                                        manilha, resultados_rodadas, primeira_vitoria,
+                                        self.current_hand_value, self.last_raiser,
+                                        self.player_starts_round)
 
-            # Unpack the results
-            vencedor, mao_do_jogador, mao_do_oponente, truco_result = resultado
+            # Unpack the results - now includes final_raiser from truco sequences
+            vencedor, mao_do_jogador, mao_do_oponente, hand_value, last_raiser, special_result = resultado
 
-            # Check if someone ran from truco
-            if isinstance(truco_result, tuple) and len(truco_result) == 2:
-                # This is a special result indicating someone ran from truco
-                truco_ladrao = truco_result[0]
+            # Update truco state
+            self.current_hand_value = hand_value
+            self.last_raiser = last_raiser
 
-                if truco_result[1] == "player_ran":
-                    player_ran_from_truco = True
-                    truco_ladrao = False # Reset truco_ladrao since player ran
-                    vencedor = "Oponente"  # Override the winner
-                    break  # End the hand immediately
-                elif truco_result[1] == "opponent_ran":
-                    opponent_ran_from_truco = True
-                    truco_ladrao = False  # Reset truco_ladrao since opponent ran
-                    vencedor = "Jogador"  # Override the winner
-                    break  # End the hand immediately
-            else:
-                # Normal round result
-                truco_ladrao = truco_result
+            # Check if someone ran from truco - this ends the hand immediately
+            if special_result:
+                if special_result[0] == "player_ran":
+                    print("Fuééén! Você correu do truco! Oponente venceu a mão!")
+                    self.pontos_oponente += self.current_hand_value
+                    print(f"Oponente venceu a mão e ganhou {self.current_hand_value} pontos!")
+                    self.player_starts_hand = False  # Opponent starts next hand
+                    
+                    # Show final score and return immediately
+                    print(f"\nPontuação:")
+                    print(f"Jogador | Pontos: {self.pontos_jogador}")
+                    print(f"Oponente | Pontos: {self.pontos_oponente}")
+                    
+                    next_starter = "Você" if self.player_starts_hand else "Oponente"
+                    print(f"\n{next_starter} começará a próxima mão.")
+                    time.sleep(1.5)
+                    return  # End the hand immediately
+                    
+                elif special_result[0] == "opponent_ran":
+                    print("Fuééén! Oponente correu do truco! Você venceu a mão!")
+                    self.pontos_jogador += self.current_hand_value
+                    print(f"Você venceu a mão e ganhou {self.current_hand_value} pontos!")
+                    self.player_starts_hand = True  # Player starts next hand
+                    
+                    # Show final score and return immediately
+                    print(f"\nPontuação:")
+                    print(f"Jogador | Pontos: {self.pontos_jogador}")
+                    print(f"Oponente | Pontos: {self.pontos_oponente}")
+                    
+                    next_starter = "Você" if self.player_starts_hand else "Oponente"
+                    print(f"\n{next_starter} começará a próxima mão.")
+                    time.sleep(1.5)
+                    return  # End the hand immediately
 
             # Update who starts the next round based on the winner of this round
             if vencedor == "Jogador":
@@ -398,8 +543,8 @@ class TrucoGame:
 
             # Check if we have enough information to determine the hand winner
             end_hand, winner_message = self.check_hand_winner(rodada, resultados_rodadas,
-                                                              vitorias_jogador, vitorias_oponente,
-                                                              primeira_vitoria)
+                                                            vitorias_jogador, vitorias_oponente,
+                                                            primeira_vitoria)
 
             if end_hand:
                 if "Jogador" in winner_message:
@@ -415,34 +560,17 @@ class TrucoGame:
                 print(winner_message)
                 break
 
-        # Handle running from truco specifically
-        if player_ran_from_truco:
-            print("Fuééén! Você correu do truco! Oponente venceu a mão!")
-            vitorias_oponente = 2
-            self.player_starts_hand = False  # Opponent starts next hand
-        elif opponent_ran_from_truco:
-            print("Fuééén! Oponente correu do truco! Você venceu a mão!")
-            vitorias_jogador = 2
-            self.player_starts_hand = True  # Player starts next hand
-
+        # This code only runs if the hand ended normally (not from truco running)
         # Update points based on the winner of the hand
         if vitorias_jogador > vitorias_oponente:
             # Add points to winning player
-            if truco_ladrao:
-                self.pontos_jogador += 3
-                print(f"Você venceu a mão e ganhou 3 pontos!")
-            else:
-                self.pontos_jogador += 1
-                print(f"Você venceu a mão e ganhou 1 ponto!")
+            self.pontos_jogador += self.current_hand_value
+            print(f"Você venceu a mão e ganhou {self.current_hand_value} pontos!")
             self.player_starts_hand = True  # Ensure player starts next hand
         elif vitorias_oponente > vitorias_jogador:
             # Add points to opponent
-            if truco_ladrao:
-                self.pontos_oponente += 3
-                print(f"Oponente venceu a mão e ganhou 3 pontos!")
-            else:
-                self.pontos_oponente += 1
-                print(f"Oponente venceu a mão e ganhou 1 ponto!")
+            self.pontos_oponente += self.current_hand_value
+            print(f"Oponente venceu a mão e ganhou {self.current_hand_value} pontos!")
             self.player_starts_hand = False  # Ensure opponent starts next hand
         else:
             # Complete draw (all three rounds were draws)
@@ -459,10 +587,16 @@ class TrucoGame:
         # Small pause before next hand
         time.sleep(1.5)
 
-    def jogar_rodada(self, rodada, mao_do_jogador, mao_do_oponente, manilha, resultados_rodadas, primeira_vitoria,
-                     truco_ladrao, player_starts):
+    def jogar_rodada(self, rodada, mao_do_jogador, mao_do_oponente, manilha, resultados_rodadas, 
+                 primeira_vitoria, current_hand_value, last_raiser, player_starts):
         """Plays a single round and returns the updated game state"""
         print(f"\nRodada {rodada + 1}:")
+        
+        # DEBUG: Print truco state at start of round
+        print(f"DEBUG - Estado do truco no início da rodada:")
+        print(f"  current_hand_value: {current_hand_value}")
+        print(f"  last_raiser: {last_raiser}")
+        print(f"  truco_name: {self.truco_names[current_hand_value]}")
 
         # Display current game state
         if rodada > 0:
@@ -480,10 +614,44 @@ class TrucoGame:
         starter = "Você" if player_starts else "Oponente"
         print(f"{starter} começa esta rodada.")
 
-        # If opponent starts, they play first
         carta_oponente = None
         if not player_starts:
-            # Check if opponent has cards left
+            # Opponent's turn - can truco/reraise if allowed
+            # Can call truco if: no truco active OR opponent wasn't the last one to raise in current truco
+            can_opponent_truco = (current_hand_value < 12 and 
+                                (current_hand_value == 1 or last_raiser != "Oponente"))
+
+            print(f"DEBUG - Oponente pode pedir truco? {can_opponent_truco}")
+
+            if can_opponent_truco and mao_do_oponente:
+                oponente_acao = random.choice(['truco', 'jogar'])
+                print(f"DEBUG - Ação do oponente: {oponente_acao}")
+                
+                if oponente_acao == 'truco':
+                    next_value = current_hand_value + 3 if current_hand_value > 1 else 3
+                    print(f"Oponente pediu {self.truco_names[next_value]}!")
+
+                    # Handle the truco sequence - pass mao_do_jogador
+                    accepted, final_value, who_ran, final_raiser = self.handle_truco_sequence("Oponente", next_value, mao_do_jogador)
+
+                    print(f"DEBUG - Resultado do truco do oponente:")
+                    print(f"  accepted: {accepted}, final_value: {final_value}")
+                    print(f"  who_ran: {who_ran}, final_raiser: {final_raiser}")
+
+                    if who_ran:
+                        return ("Oponente" if who_ran == "Jogador" else "Jogador", 
+                                mao_do_jogador, mao_do_oponente, 
+                                final_value, final_raiser, (who_ran + "_ran",))
+                    
+                    # Update state if truco was accepted - use final_raiser from the sequence
+                    current_hand_value = final_value
+                    last_raiser = final_raiser
+                    
+                    print(f"DEBUG - Estado atualizado após truco do oponente:")
+                    print(f"  current_hand_value: {current_hand_value}")
+                    print(f"  last_raiser: {last_raiser}")
+            
+            # Opponent plays card (whether truco was called or not)
             if mao_do_oponente:
                 carta_oponente = random.choice(mao_do_oponente)
                 mao_do_oponente.remove(carta_oponente)
@@ -491,66 +659,85 @@ class TrucoGame:
                 print(self.cards_database[carta_oponente])
             else:
                 print("Erro: Oponente não tem cartas para jogar!")
-                return "Jogador", mao_do_jogador, [], truco_ladrao
+                return "Jogador", mao_do_jogador, [], current_hand_value, last_raiser, None
 
         # Show player's hand and get choice
         self.exibir_mao(mao_do_jogador)
-        escolha_jogador = self.get_card_choice(mao_do_jogador, allow_truco=(not truco_ladrao),
-                                               allow_fugir=(truco_ladrao))
+        
+        print(f"DEBUG - Estado antes da escolha do jogador:")
+        print(f"  current_hand_value: {current_hand_value}")
+        print(f"  last_raiser: {last_raiser}")
+        
+        escolha_jogador = self.get_card_choice(mao_do_jogador, allow_truco=(current_hand_value < 12),
+                                            allow_fugir=(current_hand_value > 1),
+                                            current_hand_value=current_hand_value,
+                                            last_raiser=last_raiser)
 
         # Handle player's choice
         if escolha_jogador.lower() == 'f':
             print("Arregou!")
-            # Special tuple return value to indicate player ran from truco
-            return "Oponente", mao_do_jogador, mao_do_oponente, (truco_ladrao, "player_ran")
+            return ("Oponente", mao_do_jogador, mao_do_oponente, 
+                    current_hand_value, last_raiser, ("player_ran",))
         elif escolha_jogador.lower() == 't':
-            print("-TRUUUUCO!\n")
+            # Player called truco/reraise
+            next_value = current_hand_value + 3 if current_hand_value > 1 else 3
+            print(f"Você pediu {self.truco_names[next_value]}!")
+            
+            # Handle the truco sequence - pass mao_do_jogador
+            accepted, final_value, who_ran, final_raiser = self.handle_truco_sequence("Jogador", next_value, mao_do_jogador)
+            
+            print(f"DEBUG - Resultado do truco do jogador:")
+            print(f"  accepted: {accepted}, final_value: {final_value}")
+            print(f"  who_ran: {who_ran}, final_raiser: {final_raiser}")
+            
+            if who_ran:
+                return ("Jogador" if who_ran == "Oponente" else "Oponente",
+                        mao_do_jogador, mao_do_oponente,
+                        final_value, final_raiser, (who_ran + "_ran",))
+            
+            # Update state if truco was accepted - use final_raiser from the sequence
+            current_hand_value = final_value
+            last_raiser = final_raiser
+            
+            print(f"DEBUG - Estado atualizado após truco do jogador:")
+            print(f"  current_hand_value: {current_hand_value}")
+            print(f"  last_raiser: {last_raiser}")
+            
+            # Player must now play a card
+            self.exibir_mao(mao_do_jogador)
+            escolha_jogador = self.get_card_choice(mao_do_jogador, 
+                                                allow_truco=False,
+                                                allow_fugir=(current_hand_value > 1),
+                                                current_hand_value=current_hand_value,
+                                                last_raiser=last_raiser)
+            if escolha_jogador.lower() == 'f':
+                print("Arregou!")
+                return ("Oponente", mao_do_jogador, mao_do_oponente,
+                        current_hand_value, last_raiser, ("player_ran",))
 
-            # Opponent decides whether to accept the truco or run away
-            aceita_truco = random.choice([True, False])
-
-            if aceita_truco:
-                print(" -Cai dentro mané!!!")
-                truco_ladrao = True
-                # Now the player must choose a card (with option to run)
-                self.exibir_mao(mao_do_jogador)
-                escolha_jogador = self.get_card_choice(mao_do_jogador, allow_truco=False, allow_fugir=True)
-                if escolha_jogador.lower() == 'f':
-                    print("Arregou!")
-                    # Special tuple return value to indicate player ran from truco
-                    return "Oponente", mao_do_jogador, mao_do_oponente, (truco_ladrao, "player_ran")
-            else:
-                print(" -Não tô afim, toma essa mão aí!")
-                # Opponent runs away, player wins the hand
-                # Special tuple return value to indicate opponent ran from truco
-                return "Jogador", mao_do_jogador, mao_do_oponente, (True, "opponent_ran")
-
-        # Play the player's card
+        # Play the card
         carta_index = int(escolha_jogador) - 1
         carta_jogador = mao_do_jogador.pop(carta_index)
-
-        # Always display player's card after they play it
         print("O jogador jogou:")
         print(self.cards_database[carta_jogador])
 
-        # If player starts, opponent plays after
-        if player_starts:
-            # Make sure the opponent has cards to play
-            if mao_do_oponente:
-                carta_oponente = random.choice(mao_do_oponente)
-                mao_do_oponente.remove(carta_oponente)
-                print("O oponente jogou:")
-                print(self.cards_database[carta_oponente])
-            else:
-                print("Erro: Oponente não tem cartas para jogar!")
-                return "Jogador", mao_do_jogador, [], truco_ladrao
+        # Handle opponent playing after player if needed
+        if player_starts and mao_do_oponente:
+            carta_oponente = random.choice(mao_do_oponente)
+            mao_do_oponente.remove(carta_oponente)
+            print("O oponente jogou:")
+            print(self.cards_database[carta_oponente])
 
         # Determine winner
         vencedor = self.vencedor_rodada(carta_jogador, carta_oponente, manilha)
         print("Vencedor da rodada:", vencedor)
 
-        # Return a normal result (not from running away)
-        return vencedor, mao_do_jogador, mao_do_oponente, truco_ladrao
+        print(f"DEBUG - Estado final da rodada sendo retornado:")
+        print(f"  current_hand_value: {current_hand_value}")
+        print(f"  last_raiser: {last_raiser}")
+
+        return (vencedor, mao_do_jogador, mao_do_oponente, 
+                current_hand_value, last_raiser, None)
 
     def check_hand_winner(self, rodada, resultados_rodadas, vitorias_jogador, vitorias_oponente, primeira_vitoria):
         """Checks if there's a winner for the current hand"""
