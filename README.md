@@ -2,7 +2,8 @@
 
 ## Introduction
 
-**Truco 2000** is a feature-rich command-line implementation of the popular Brazilian card game "Truco" developed by mama. This game showcases advanced Python programming skills with object-oriented design, sophisticated game logic, and an immersive ASCII-based user interface with a retro Y2K aesthetic. Currently available in Brazilian Portuguese.
+
+**Truco 2000** is a feature-rich, modular command-line implementation of the popular Brazilian card game "Truco" developed by mama. The codebase has been fully refactored for maintainability, extensibility, and future enhancements, with a clean separation of concerns across multiple modules. The game features advanced Python programming, object-oriented design, and an immersive ASCII-based user interface with a retro Y2K aesthetic. Currently available in Brazilian Portuguese.
 
 ---
 
@@ -15,6 +16,43 @@ Truco is a popular card game in Brazil and parts of Latin America. It's a trick-
 - Includes strategic elements like bluffing and calling "truco" to raise the stakes
 - Players can call truco at strategic moments to increase point values
 - The first player to reach 12 points wins the game
+
+---
+
+
+---
+
+## 🏗️ Project Architecture & Refactor Overview
+
+### Modular Structure (2025 Refactor)
+
+The codebase is now organized into the following modules:
+
+- **`main.py`**: Entry point. Initializes and launches the game.
+- **`game_controller.py`**: Orchestrates the main game loop, hand/round flow, and coordinates all modules.
+- **`game_core.py`**: Pure game logic (deck, rules, scoring, round/hand winner logic). No UI dependencies.
+- **`truco_logic.py`**: Handles truco escalation, negotiation, and AI responses. All truco-specific state and logic lives here.
+- **`ui/`**: UI system split into:
+	- `ui/display.py`: Layout, battle zone, and all output rendering.
+	- `ui/input.py`: All user input, validation, and global quit handling.
+	- `ui/ascii_art.py`: Card and banner ASCII art generation.
+- **`config.py`**: Centralized settings (screen width, truco names, etc).
+- **`utils.py`**: Shared helpers (safe_exit, formatting, etc).
+
+#### Key Design Principles
+- **Separation of Concerns**: Game logic, UI, and controller are strictly separated.
+- **Extensibility**: Easy to add new features (AI, tutorial, sound, etc) without breaking core logic.
+- **Testability**: Pure logic modules can be tested independently of UI.
+- **Future-Proofing**: Structure supports future GUI/web, AI, and tutorial systems.
+
+#### Major Changes in the Refactor
+- All core logic, truco negotiation, and UI code split into dedicated modules.
+- Controller orchestrates game flow, hands, and rounds.
+- UI rendering and input are fully decoupled from game logic.
+- Truco escalation and AI logic isolated for easy extension.
+- Card/label centering and battle zone layout improved for clarity.
+- Global quit command and robust input validation.
+- Legacy monolithic script archived; new entry point is `main.py`.
 
 ---
 
@@ -54,10 +92,29 @@ Truco is a popular card game in Brazil and parts of Latin America. It's a trick-
 
 ---
 
+
+---
+
+## 🗂️ File & Module Overview
+
+| Module/File            | Responsibility                                                      |
+|------------------------|---------------------------------------------------------------------|
+| `main.py`              | Entry point, initializes game controller                            |
+| `game_controller.py`   | Main game loop, hand/round management, module coordination          |
+| `game_core.py`         | Deck, rules, scoring, round/hand winner logic (no UI dependencies)  |
+| `truco_logic.py`       | Truco escalation, negotiation, AI responses                         |
+| `ui/display.py`        | Output rendering, layout, battle zone, banners                      |
+| `ui/input.py`          | User input, validation, global quit                                 |
+| `ui/ascii_art.py`      | Card and banner ASCII art generation                                |
+| `config.py`            | Centralized settings (screen width, truco names, etc)               |
+| `utils.py`             | Shared helpers (safe_exit, formatting, etc)                         |
+
+---
+
 ## 🎮 How to Play
 
 ### **Starting the Game**
-1. Run the script: `python truco_2000_v1.0.py`
+1. Run the game: `python main.py`
 2. Follow the ASCII art intro and choose to play
 3. The game displays your cards side-by-side with clear numbering
 
@@ -102,33 +159,33 @@ Truco is a popular card game in Brazil and parts of Latin America. It's a trick-
 
 ---
 
-## 🏗️ Technical Excellence
 
-This project demonstrates advanced programming concepts:
+## 🛠️ Technical Excellence & Refactor Benefits
 
-### **Object-Oriented Design**
-- Clean class structure with separated concerns
-- Encapsulated game state and behavior
-- Modular methods for different game phases
+### **Modern Modular Architecture**
+- Strict separation of game logic, UI, and controller for maintainability
+- Each module has a single responsibility and clear interface
+- Easy to extend: add new UI, AI, tutorial, or sound modules without breaking core logic
 
 ### **Advanced Game Logic**
-- Complex truco sequence handling
-- Proper state management across rounds and hands
-- Accurate implementation of Brazilian Truco rules
+- All rules, deck, and scoring logic isolated in `game_core.py`
+- Truco negotiation and escalation handled in `truco_logic.py`
+- Controller manages game state and flow, not UI or rules
 
 ### **User Interface Innovation**
-- Dynamic ASCII art generation
-- Screen clearing and layout management
-- Progressive visual reveals with timing
-- Battle zone system for card display
-- Two-column layout with persistent sidebar
-- Consistent battle zone height (no shifting cards)
+- All output rendering and input handling in `ui/` submodules
+- Battle zone and card display always aligned and centered
+- ASCII art and banners generated in dedicated module
+- Global quit command and robust input validation
 
 ### **Code Quality**
-- Comprehensive input validation
-- Error handling and edge case management
+- Fully decoupled modules for easier testing and future upgrades
+- Legacy monolithic script archived for reference
 - Clean, readable, and maintainable code structure
-- Deprecated/removed unused display functions for clarity
+
+### **Extensibility**
+- Ready for new features: AI difficulties, tutorial, sound, GUI/web UI, and more
+
 
 ---
 
@@ -148,16 +205,17 @@ This project demonstrates advanced programming concepts:
 
 ---
 
-## 🚀 Recent Improvements (August 2025)
 
-### **Major UI and Logic Enhancements**
-- 🖥️ **Two-column layout**: Sidebar with score, round info, vira, and manilha; main area for cards and battle zone
-- 🃏 **Battle zone always open**: Never shifts, always shows header and placeholder if empty
-- 🏷️ **Dynamic label and card spacing**: Card labels and cards always aligned, with adjustable spacing
-- 🛑 **Global quit command**: Type 'quit' at any prompt to exit instantly
-- 🧹 **Removed unused display functions**: Cleaned up legacy code for maintainability
-- 🐞 **Bug fixes**: No more shifting cards or missing card lines when round result is shown
-- ⏱️ **Strategic pauses**: Ensured all important messages (like truco acceptance) are visible before screen clears
+## 🚀 Major Changes in the 2025 Refactor
+
+- 🗂️ **Full modularization**: All logic, UI, and controller code split into dedicated modules
+- 🧠 **Pure logic modules**: Game rules and truco negotiation are UI-independent
+- 🖥️ **UI system overhaul**: All display and input code in `ui/` submodules
+- ⚔️ **Battle zone and card alignment**: Always centered and visually clear
+- 🏃 **Global quit command**: Type 'quit' at any prompt to exit instantly
+- 🐞 **Bug fixes**: Round starter logic, UI card alignment, handler argument errors all addressed
+- 🧹 **Legacy script archived**: `truco_2000_v1.0.py` is now for reference only; use `main.py` to play
+
 
 ---
 
@@ -203,7 +261,7 @@ This game showcases mama-cailleach's expertise in:
 
 1. **Requirements**: Python 3.x
 2. **Installation**: Download `truco_2000_v1.0.py`
-3. **Run**: `python truco_2000_v1.0.py`
+3. **Run**: `python main.py`
 4. **Enjoy**: Experience authentic Brazilian Truco with modern enhancements!
 
 ---
