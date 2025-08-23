@@ -183,22 +183,22 @@ class InputHandler:
             valid_options.append('t')
             next_value = truco_logic.get_next_truco_value()
             truco_name = truco_logic.get_truco_name(next_value)
-            print(f"T: {truco_name}")
+            #print(f"T: {truco_name}")
         elif allow_truco and not truco_logic.can_raise_truco("Jogador"):
-            print("(Você já pediu o último truco/reraise desta mão)")
+            print("(Você pediu o último truco desta mão)")
         
         if allow_fugir:
             valid_options.append('f')
-            print("F: Fugir")
+           # print("F: Fugir")
         
         # Build prompt
         prompt_options = ""
         if can_truco:
             next_value = truco_logic.get_next_truco_value()
             truco_name = truco_logic.get_truco_name(next_value)
-            prompt_options += f", T ({truco_name})"
+            prompt_options += f", T({truco_name})"
         if allow_fugir:
-            prompt_options += ", F (Fugir)"
+            prompt_options += ", F(Fugir)"
         
         prompt = f"Escolha o número da carta que deseja jogar{prompt_options}: "
         

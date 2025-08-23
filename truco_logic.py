@@ -141,6 +141,7 @@ class TrucoLogic:
                     return True, value, None, raiser, value
                 elif response == 'reraise':
                     # Player wants to reraise
+                    last_accepted_value = value
                     next_value = self.get_next_truco_value(value)
                     if next_value is None or next_value > 12:
                         # Cannot reraise further, must accept
@@ -166,6 +167,7 @@ class TrucoLogic:
                     return True, value, None, raiser, value
                 elif response == 'reraise':
                     # Opponent wants to reraise
+                    last_accepted_value = value
                     next_value = self.get_next_truco_value(value)
                     if next_value is None or next_value > 12:
                         # Cannot reraise further, must accept

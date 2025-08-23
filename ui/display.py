@@ -72,49 +72,44 @@ class UIDisplay:
         lines.append(self.ascii_art.center_text("MESA", main_width))
         lines.append(self.ascii_art.create_separator(main_width))
         
-        battle_cards = []
-        labels = []
-        
-        # Collect cards and labels to display
+        # Always assign fixed positions: [player, opponent]
+        battle_cards = [None, None]
+        labels = ["SUA CARTA", "CARTA DO OPONENTE"]
+
         if carta_jogador:
-            battle_cards.append(carta_jogador)
-            labels.append("SUA CARTA")
+            battle_cards[0] = carta_jogador
         if carta_oponente:
-            battle_cards.append(carta_oponente)
-            labels.append("CARTA DO OPONENTE")
+            battle_cards[1] = carta_oponente
+        
         
         if battle_cards:
             # Display labels
             if len(battle_cards) == 1:
                 # Single card - center the label
-                lines.append(labels[0]) # self.ascii_art.center_text(labels[0], main_width)
+                lines.append(f"{labels[0]}") # self.ascii_art.center_text(labels[0], main_width)
             else:
                 # Two cards - distribute labels
                 label_spacing = main_width // 2
-                left_label = f"{labels[0]}"
-                right_label = f"{labels[1]:^{30}}"
+                left_label = f"{labels[0]:^{label_spacing}}"
+                right_label = f"{labels[1]:^{label_spacing}}"
                 lines.append(left_label + right_label)
             
-            # Display cards side by side
-            card_displays = [self.cards_database[c].split('\n') for c in battle_cards]
+            # Display cards always player card left and opponent right
+            card_displays = []
+            for card in battle_cards:
+                if card:
+                    card_displays.append(self.cards_database[card].split('\n'))
+                else:
+                    # Fill with empty card lines for alignment
+                    card_displays.append([" " * 9] * 7)  # 7 = card height
+
             max_card_lines = max(len(card) for card in card_displays)
-            
             for i in range(max_card_lines):
-                row = ""
-                for idx, card_lines in enumerate(card_displays):
-                    if i < len(card_lines):
-                        card_line = card_lines[i]
-                    else:
-                        card_line = " " * 9  # Empty card line width
-                    
-                    if idx == 0:
-                        # First card - add some left padding
-                        row += f"  {card_line}"
-                    else:
-                        # Subsequent cards - add spacing
-                        row += f"    {card_line}"
-                
-                lines.append(row.ljust(main_width))
+                left_card = card_displays[0][i] if i < len(card_displays[0]) else " " * 9
+                right_card = card_displays[1][i] if i < len(card_displays[1]) else " " * 9
+                row = left_card.center(label_spacing) + right_card.center(main_width - label_spacing)
+                lines.append(row)
+            
             
             # Show round result if requested
             if show_result and round_result:
@@ -126,6 +121,9 @@ class UIDisplay:
         else:
             # No cards to display - show placeholder
             lines.append(self.ascii_art.center_text("(aguardando cartas...)", main_width))
+            default_card_height = 7  # Set this to match your card ASCII art height
+            for _ in range(default_card_height):
+                lines.append("")
             lines.append("")  # Empty lines for consistent height
             lines.append("")
         
