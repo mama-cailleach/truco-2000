@@ -50,6 +50,7 @@ class UIDisplay:
     
     def show_game_intro(self):
         """Display the complete game introduction sequence."""
+        self.clear_screen()
         self.ascii_art.display_intro_sequence()
     
     def get_battle_zone_lines(self, main_width, carta_jogador=None, carta_oponente=None, 
@@ -192,7 +193,7 @@ class UIDisplay:
         sidebar_lines.append("")
         
         # Pad sidebar to minimum height for consistent layout
-        min_sidebar_height = 28
+        min_sidebar_height = 24
         while len(sidebar_lines) < min_sidebar_height:
             sidebar_lines.append("")
         
