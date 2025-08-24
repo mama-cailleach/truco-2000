@@ -103,7 +103,10 @@ class GameController:
                     # Player runs from truco
                     winner, points = self.truco.calculate_points_for_runner("Jogador", current_hand_value, current_hand_value)
                     self.core.update_score(winner, points)
-                    self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
+                    if points == 1:
+                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} ponto.", 3)
+                    else:
+                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
                     self.core.player_starts_hand = False
                     return
                 elif escolha.lower() == 't':
@@ -116,7 +119,10 @@ class GameController:
                     if not accepted:
                         winner, points = self.truco.calculate_points_for_runner(who_ran, final_value, last_accepted_value)
                         self.core.update_score(winner, points)
-                        self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
+                        if points == 1:
+                            self.ui.show_message(f"{winner} ganha {points} ponto!", 3)
+                        else:
+                            self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
                         self.core.player_starts_hand = (winner == "Jogador")
                         return
                     # After truco, ask for card again
@@ -127,7 +133,10 @@ class GameController:
                     if escolha.lower() == 'f':
                         winner, points = self.truco.calculate_points_for_runner("Jogador", self.truco.current_hand_value, self.truco.current_hand_value)
                         self.core.update_score(winner, points)
-                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
+                        if points == 1:
+                            self.ui.show_message(f"Você fugiu! Oponente ganha {points} ponto.", 3)
+                        else:
+                            self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
                         self.core.player_starts_hand = False
                         return
                 # Play card
@@ -155,7 +164,10 @@ class GameController:
                     if not accepted:
                         winner, points = self.truco.calculate_points_for_runner(who_ran, final_value, last_accepted_value)
                         self.core.update_score(winner, points)
-                        self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
+                        if points == 1:
+                            self.ui.show_message(f"{winner} ganha {points} ponto!", 3)
+                        else:
+                            self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
                         self.core.player_starts_hand = (winner == "Jogador")
                         return
                 # Opponent plays card
@@ -177,7 +189,10 @@ class GameController:
                 if escolha.lower() == 'f':
                     winner, points = self.truco.calculate_points_for_runner("Jogador", self.truco.current_hand_value, self.truco.current_hand_value)
                     self.core.update_score(winner, points)
-                    self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
+                    if points == 1:
+                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} ponto.", 3)
+                    else:
+                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
                     self.core.player_starts_hand = False
                     return
                 elif escolha.lower() == 't':
@@ -189,7 +204,10 @@ class GameController:
                     if not accepted:
                         winner, points = self.truco.calculate_points_for_runner(who_ran, final_value, last_accepted_value)
                         self.core.update_score(winner, points)
-                        self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
+                        if points == 1:
+                            self.ui.show_message(f"{winner} ganha {points} ponto!", 3)
+                        else:
+                            self.ui.show_message(f"{winner} ganha {points} pontos!", 3)
                         self.core.player_starts_hand = (winner == "Jogador")
                         return
                     escolha = self.input.get_card_choice(
@@ -199,7 +217,10 @@ class GameController:
                     if escolha.lower() == 'f':
                         winner, points = self.truco.calculate_points_for_runner("Jogador", self.truco.current_hand_value, self.truco.current_hand_value)
                         self.core.update_score(winner, points)
-                        self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
+                        if points == 1:
+                            self.ui.show_message(f"Você fugiu! Oponente ganha {points} ponto.", 3)
+                        else:
+                            self.ui.show_message(f"Você fugiu! Oponente ganha {points} pontos.", 3)
                         self.core.player_starts_hand = False
                         return
                 carta_index = int(escolha) - 1

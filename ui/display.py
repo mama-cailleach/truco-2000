@@ -152,7 +152,7 @@ class UIDisplay:
         sidebar_width = 38  # Sidebar width
         
         # Score and round info
-        sidebar_lines.append(f"PONTUAÇÃO: Você {game_core.pontos_jogador} x {game_core.pontos_oponente} Oponente")
+        sidebar_lines.append(f"PLACAR: Você {game_core.pontos_jogador} x {game_core.pontos_oponente} Oponente")
         sidebar_lines.append("")
         sidebar_lines.append(f"RODADA {rodada + 1}")
         starter = "Você" if player_starts else "Oponente"
@@ -375,7 +375,10 @@ class UIDisplay:
             game_core (GameCore): Game core for current scores
         """
         winner_text = "Você" if winner == "Jogador" else "Oponente"
-        self.show_message(f"\n*** {winner_text} venceu a mão e ganhou {points} pontos! ***")
+        if points == 1:
+            self.show_message(f"\n*** {winner_text} venceu a mão e ganhou {points} ponto! ***")
+        else:
+            self.show_message(f"\n*** {winner_text} venceu a mão e ganhou {points} pontos! ***")
         self.show_message(f"Placar: Você {game_core.pontos_jogador} x {game_core.pontos_oponente} Oponente")
     
     def show_game_winner(self, winner):
