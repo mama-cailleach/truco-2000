@@ -2,9 +2,8 @@
 __pycache__/
 ui/__pycache__/
 /__pycache__/
-/ui/__pycache__/
+ui/__pycache__/
 /dist/
 /build/
 main.spec
-
 *.pyc
