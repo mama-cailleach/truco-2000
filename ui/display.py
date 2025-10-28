@@ -9,7 +9,7 @@ This module handles all screen display and layout management:
 - Card hand display
 
 This module coordinates visual elements but delegates ASCII art generation
-to the ascii_art module.
+to the ascii art generator for rendering.
 """
 
 import os
@@ -39,7 +39,7 @@ class UIDisplay:
     
     def clear_screen(self):
         """Clear the console screen."""
-        os.system('cls')
+        os.system('cls' if os.name == 'nt' else 'clear')
     
     def show_quit_message(self):
         """Display the quit message with bear mascot."""
@@ -95,27 +95,38 @@ class UIDisplay:
                 right_label = f"{labels[1]:^{label_spacing}}"
                 lines.append(left_label + right_label)
             
-            # Display cards always player card left and opponent right
-            card_displays = []
+            # Display cards - always player card left and opponent right
+            # First, gather the lines of ASCII art for each card
+            card_text_lines = []
             for card in battle_cards:
                 if card:
-                    card_displays.append(self.cards_database[card].split('\n'))
+                    card_lines = self.cards_database[card].split('\n')
                 else:
-                    # Fill with empty card lines for alignment
-                    card_displays.append([" " * 9] * 7)  # 7 = card height
-
-            max_card_lines = max(len(card) for card in card_displays)
-            for i in range(max_card_lines):
-                left_card = card_displays[0][i] if i < len(card_displays[0]) else " " * 9
-                right_card = card_displays[1][i] if i < len(card_displays[1]) else " " * 9
-                row = left_card.center(label_spacing) + right_card.center(main_width - label_spacing)
-                lines.append(row)
+                    card_lines = [" " * 9] * 7  # 7 = card height
+                card_text_lines.append(card_lines)
             
+            max_card_lines = max(len(lines) for lines in card_text_lines)
+            for i in range(max_card_lines):
+                # Get the text for each line or create empty ones
+                left_line = card_text_lines[0][i] if i < len(card_text_lines[0]) else " " * 9
+                right_line = card_text_lines[1][i] if i < len(card_text_lines[1]) else " " * 9
+                
+                # Center the lines within their columns
+                label_spacing = main_width // 2
+                left_centered = left_line.center(label_spacing)
+                right_centered = right_line.center(main_width - label_spacing)
+                
+                # Create the combined line
+                row = left_centered + right_centered
+                
+                lines.append(row)
             
             # Show round result if requested
             if show_result and round_result:
                 lines.append("")
-                lines.append(self.ascii_art.center_text(f"*** {round_result} ***", main_width))
+                result_text = f"*** {round_result} ***"
+                centered_result = result_text.center(main_width)
+                lines.append(centered_result)
             else:
                 lines.append("")  # Empty line for spacing
                 lines.append("")  # Second empty line for consistent height
@@ -313,7 +324,7 @@ class UIDisplay:
             message (str): Message to display
             pause_time (float): Time to pause after showing message
         """
-        print(f"\n{message}")
+        print(f"\n{message}\n")
         if pause_time > 0:
             time.sleep(pause_time)
     
