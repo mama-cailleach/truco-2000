@@ -1,0 +1,7 @@
+# Development requirements for Truco 2000 (Textual UI work)
+# Pin a range to keep compatibility while allowing patch updates.
+textual>=0.22,<1.0
+rich>=13.0,<15.0
+# Optional dev/test tools
+pytest>=7.0,<8.0
+flake8>=6.0,<7.0
