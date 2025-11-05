@@ -82,6 +82,10 @@ class GameConfig:
     QUIT_COMMAND = 'quit'
     TRUCO_COMMAND = 't'
     FUGIR_COMMAND = 'f'
+
+    # UI options
+    # If True, use a modal dialog for pending truco responses; if False, change buttons inline
+    USE_MODAL_TRUCO = False
     
     # Messages
     MESSAGES = {
