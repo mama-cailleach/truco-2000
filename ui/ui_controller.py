@@ -220,6 +220,13 @@ class UIController:
             winner, points = self.truco.calculate_points_for_runner('Oponente', next_value, last_accepted)
             self.core.update_score(winner, points)
             self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
+            # Mark the hand ended and set next-hand/round starter based on winner
+            try:
+                self.core.player_starts_hand = (winner == "Jogador")
+                self.core.player_starts_round = (winner == "Jogador")
+            except Exception:
+                pass
+            self.hand_ended = True
             return self.get_snapshot()
         else:
             # Opponent re-raised — compute the new value and create a pending request
@@ -246,6 +253,16 @@ class UIController:
         winner, points = self.truco.calculate_points_for_runner("Jogador", final_value, last_accepted)
         self.core.update_score(winner, points)
         self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
+        # Mark the hand as ended and set the next hand/round starter to opponent
+        try:
+            # When the player flees, opponent will start the next hand/round
+            self.core.player_starts_hand = False
+            self.core.player_starts_round = False
+        except Exception:
+            pass
+
+        # Let the UI show an end-of-hand banner; UI will call adapter.reset_hand()
+        self.hand_ended = True
         return self.get_snapshot()
 
     def respond_to_truco(self, action: str) -> Dict:
@@ -273,7 +290,14 @@ class UIController:
             winner, points = self.truco.calculate_points_for_runner('Jogador', value, last_accepted)
             self.core.update_score(winner, points)
             self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
+            # Clear pending and mark hand completed; set starter based on winner
             self.pending_truco = None
+            try:
+                self.core.player_starts_hand = (winner == "Jogador")
+                self.core.player_starts_round = (winner == "Jogador")
+            except Exception:
+                pass
+            self.hand_ended = True
             return self.get_snapshot()
 
         if action == 'reraise':

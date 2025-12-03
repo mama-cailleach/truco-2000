@@ -10,11 +10,6 @@ class SidebarWidget(Static):
 
     def render_snapshot(self, snapshot: Dict) -> str:
         lines: List[str] = []
-        # Optional transient message to show in the sidebar
-        msg = snapshot.get("message")
-        if msg:
-            lines.append(f"! {msg}")
-            lines.append("")
         scores = snapshot.get("scores", {})
         lines.append(f"PLACAR: Você {scores.get('player', 0)} x {scores.get('opponent', 0)} Oponente")
         lines.append("")
@@ -25,6 +20,12 @@ class SidebarWidget(Static):
         lines.append("RESULTADOS:")
         for i, r in enumerate(rounds):
             lines.append(f"  Rodada {i+1}: {r}")
+        # Optional transient message to show in the sidebar
+        lines.append("")
+        msg = snapshot.get("message")
+        if msg:
+            lines.append(f"! {msg}")
+            lines.append("")
         return "\n".join(lines)
 
     def update_snapshot(self, snapshot: Dict):

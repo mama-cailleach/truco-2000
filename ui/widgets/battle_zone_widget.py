@@ -15,23 +15,26 @@ class BattleZoneWidget(Static):
         def normalize(card: Optional[List[str]]) -> List[str]:
             if card and len(card) >= card_height:
                 return card[:card_height]
-            # Placeholder block of same height
-            placeholder = ["       "] * card_height
-            placeholder[2] = " (aguard)"
+            # Placeholder block of same height - render an empty card outline
+            placeholder = [
+                "┌─────┐",
+                "│  X  │",
+                "│  X  │",
+                "│  X  │",
+                "└─────┘",
+            ]
             return placeholder
 
         left = normalize(player_card)
         right = normalize(opponent_card)
 
-        # Center status lines (one of them may contain status_text)
+        # Center status lines (one of them may contain status_text) 
+        # just blank now. Poss be the deck of cards or something.
         center = ["     "] * card_height
-        if status_text:
-            mid = card_height // 2
-            center[mid] = f" {status_text} "[:5]
 
         # Build merged lines
         merged: List[str] = []
-        merged.append("MESA:")
+        merged.append("MESA".center(len(left[0]) + 3 + len(center[0]) + len(right[0]) + 4))
         for i in range(card_height):
             merged.append(f"{left[i]}   {center[i]}   {right[i]}")
 

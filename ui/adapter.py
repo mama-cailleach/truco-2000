@@ -157,6 +157,27 @@ def opponent_play(controller) -> Dict:
             return demo_game_state()
 
 
+def opponent_preplay(controller) -> Dict:
+    """Adapter wrapper used when the UI wants the opponent to pre-play for the
+    upcoming round. This clears any lingering player's played card so the table
+    shows only the opponent's preview card.
+    """
+    try:
+        # Clear player's played slot if present to avoid showing an old card
+        try:
+            if hasattr(controller, "played") and isinstance(controller.played, dict):
+                controller.played["player"] = None
+        except Exception:
+            pass
+
+        return controller.opponent_play()
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
 def resolve_round(controller) -> Dict:
     """Adapter wrapper to resolve the currently played round."""
     try:
