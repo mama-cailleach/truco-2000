@@ -36,8 +36,12 @@ class TrucoModal(Screen):
     def on_mount(self) -> None:
         # Update the subtitle with the pending truco value from controller
         try:
-            pending = self.app.controller.pending_truco
-            msg = f"Oponente pediu {self.app.controller.truco.get_truco_name(pending['value'])}"
+            snap = adapter.snapshot_from_controller(self.app.controller)
+            pending_name = snap.get("pending_truco_name")
+            if pending_name:
+                msg = f"Oponente pediu {pending_name}"
+            else:
+                msg = "Pedido de truco"
         except Exception:
             msg = "Pedido de truco"
         # Update the second Static (subtitle)
@@ -60,11 +64,11 @@ class TrucoModal(Screen):
             await self.app.pop_screen()
             return
 
-        # Respond via controller and update main UI
+        # Respond via adapter (controller wrapper) and update main UI
         try:
-            snapshot = self.app.controller.respond_to_truco(chosen)
+            snapshot = adapter.respond_truco(self.app.controller, chosen)
         except Exception:
-            snapshot = self.app.controller.get_snapshot()
+            snapshot = adapter.snapshot_from_controller(self.app.controller)
 
         try:
             sidebar = self.app.query_one(SidebarWidget)
@@ -183,9 +187,8 @@ class TrucoTextualApp(App):
         the Restart action is chosen.
         """
         try:
-            # Reset controller state for a new hand/game
-            self.controller.reset_hand()
-            snapshot = self.controller.get_snapshot()
+            # Reset controller state for a new hand/game via adapter
+            snapshot = adapter.reset_hand(self.controller)
 
             sidebar = self.query_one(SidebarWidget)
             hand = self.query_one(HandWidget)
@@ -270,10 +273,12 @@ class TrucoTextualApp(App):
         battle.update_zone(player_card, opponent_card)
 
         # If opponent should start the first round, pre-play their card so the player
-        # can see it before choosing (matches original CLI behavior).
+        # can see it before choosing (matches original CLI behavior). Use adapter snapshot
+        # so we avoid reaching into controller.core directly.
         try:
-            if not getattr(self.controller.core, "player_starts_round", True):
-                snapshot = self.controller.opponent_play()
+            ctrl_snap = adapter.snapshot_from_controller(self.controller)
+            if not ctrl_snap.get("player_starts_round", True):
+                snapshot = adapter.opponent_play(self.controller)
                 sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
                 # update hand payload (player hand unchanged)
                 self.current_hand_payload = adapter.hand_from_state(snapshot)
@@ -292,10 +297,11 @@ class TrucoTextualApp(App):
         THINK_DELAY = 0.6
         REVEAL_DELAY = 0.8
 
-        # Decide who starts this round (controller/core tracks it)
+        # Decide who starts this round (use adapter snapshot so UI doesn't access controller.core)
         starter_is_player = True
         try:
-            starter_is_player = getattr(self.controller.core, "player_starts_round", True)
+            ctrl_snap = adapter.snapshot_from_controller(self.controller)
+            starter_is_player = ctrl_snap.get("player_starts_round", True)
         except Exception:
             starter_is_player = True
 
@@ -310,9 +316,9 @@ class TrucoTextualApp(App):
         if starter_is_player:
             # Player starts: player plays first, then opponent
             try:
-                snapshot = self.controller.play_player_card(index)
+                snapshot = adapter.play_card(self.controller, index)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
             # Update runtime UI to show player's played card
             self.current_hand_codes = snapshot.get("player_hand", [])
@@ -334,9 +340,9 @@ class TrucoTextualApp(App):
 
             # Opponent plays
             try:
-                snapshot = self.controller.opponent_play()
+                snapshot = adapter.opponent_play(self.controller)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
             if sidebar:
                 sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
@@ -349,20 +355,20 @@ class TrucoTextualApp(App):
 
             # Resolve round
             try:
-                snapshot = self.controller.resolve_round()
+                snapshot = adapter.resolve_round(self.controller)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
         else:
             # Opponent starts: opponent plays first, then player
             # 1) Opponent plays (unless they already played and we pre-rendered their card)
             try:
                 if not getattr(self.controller, "played", {}).get("opponent"):
-                    snapshot = self.controller.opponent_play()
+                    snapshot = adapter.opponent_play(self.controller)
                 else:
-                    snapshot = self.controller.get_snapshot()
+                    snapshot = adapter.snapshot_from_controller(self.controller)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
             # Update UI to show opponent only
             self.current_hand_payload = adapter.hand_from_state(snapshot)
@@ -381,9 +387,9 @@ class TrucoTextualApp(App):
 
             # 2) Now player plays (we were triggered by player's key)
             try:
-                snapshot = self.controller.play_player_card(index)
+                snapshot = adapter.play_card(self.controller, index)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
             # Update runtime UI to show player's played card
             self.current_hand_codes = snapshot.get("player_hand", [])
@@ -402,9 +408,9 @@ class TrucoTextualApp(App):
 
             # Resolve round
             try:
-                snapshot = self.controller.resolve_round()
+                snapshot = adapter.resolve_round(self.controller)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
         sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
         self.current_hand_codes = snapshot.get("player_hand", [])
@@ -417,9 +423,10 @@ class TrucoTextualApp(App):
         # have the opponent play immediately so the player sees the opponent's card
         # before making their selection (matches original CLI behavior).
         try:
-            if not snapshot.get("hand_ended", False) and not getattr(self.controller.core, "player_starts_round", True):
+            ctrl_snap = adapter.snapshot_from_controller(self.controller)
+            if not snapshot.get("hand_ended", False) and not ctrl_snap.get("player_starts_round", True):
                 # Opponent plays for the upcoming round
-                next_snapshot = self.controller.opponent_play()
+                next_snapshot = adapter.opponent_play(self.controller)
                 sidebar.update_snapshot(adapter.sidebar_from_state(next_snapshot))
                 self.current_hand_payload = adapter.hand_from_state(next_snapshot)
                 hand.update_hand(self.current_hand_payload, None)
@@ -442,9 +449,8 @@ class TrucoTextualApp(App):
                     except Exception:
                         pass
                 else:
-                    # auto-deal next hand
-                    self.controller.reset_hand()
-                    snapshot = self.controller.get_snapshot()
+                    # auto-deal next hand (reset via adapter)
+                    snapshot = adapter.reset_hand(self.controller)
                     sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
                     self.current_hand_codes = snapshot.get("player_hand", [])
                     self.current_hand_payload = adapter.hand_from_state(snapshot)
@@ -454,8 +460,9 @@ class TrucoTextualApp(App):
                     # If the opponent starts the new hand, pre-play their card so the player
                     # sees it before selecting their card (matches original CLI behavior).
                     try:
-                        if not getattr(self.controller.core, "player_starts_round", True):
-                            snapshot = self.controller.opponent_play()
+                        # reset_hand returned snapshot so use that to decide starter when available
+                        if not snapshot.get("player_starts_round", True):
+                            snapshot = adapter.opponent_play(self.controller)
                             sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
                             self.current_hand_payload = adapter.hand_from_state(snapshot)
                             hand.update_hand(self.current_hand_payload, None)
@@ -481,8 +488,8 @@ class TrucoTextualApp(App):
                     pass
         elif btn_id == "truco":
             try:
-                # call controller.truco and update
-                snapshot = self.controller.call_truco()
+                # call controller.truco and update via adapter
+                snapshot = adapter.call_truco(self.controller)
                 sidebar = self.query_one(SidebarWidget)
                 hand = self.query_one(HandWidget)
                 battle = self.query_one(BattleZoneWidget)
@@ -519,9 +526,9 @@ class TrucoTextualApp(App):
             # Inline handling for responding to a pending truco (from PromptWidget)
             try:
                 action = "accept" if btn_id == "accept" else "reraise"
-                snapshot = self.controller.respond_to_truco(action)
+                snapshot = adapter.respond_truco(self.controller, action)
             except Exception:
-                snapshot = self.controller.get_snapshot()
+                snapshot = adapter.snapshot_from_controller(self.controller)
 
             try:
                 sidebar = self.query_one(SidebarWidget)
@@ -564,7 +571,7 @@ class TrucoTextualApp(App):
                     pass
         elif btn_id == "run":
             try:
-                snapshot = self.controller.run()
+                snapshot = adapter.flee(self.controller)
                 sidebar = self.query_one(SidebarWidget)
                 sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
             except Exception:
@@ -574,7 +581,8 @@ class TrucoTextualApp(App):
             try:
                 # reset full match scores then start
                 try:
-                    self.controller.reset_match()
+                    # Reset full match via adapter and then start
+                    adapter.reset_match(self.controller)
                 except Exception:
                     pass
                 await self.start_game()

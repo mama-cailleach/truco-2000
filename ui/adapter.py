@@ -94,13 +94,133 @@ def snapshot_from_controller(controller) -> Dict:
     creating a fresh GameCore snapshot so the UI can still show something.
     """
     try:
-        # controller.core has scores at least
+        # Prefer controller.get_snapshot() when available so we reflect live state
+        try:
+            snap = controller.get_snapshot()
+        except Exception:
+            # fall back to building a snapshot from a fresh GameCore
+            core = getattr(controller, "core", None)
+            scores = {"player": getattr(core, "pontos_jogador", 0), "opponent": getattr(core, "pontos_oponente", 0)}
+            snap = snapshot_from_gamecore()
+            snap["scores"] = scores
+
+        # Include starter flags from controller.core when available so UI can
+        # decide who should play next without reaching into controller internals.
         core = getattr(controller, "core", None)
-        scores = {"player": getattr(core, "pontos_jogador", 0), "opponent": getattr(core, "pontos_oponente", 0)}
-        # We don't assume controller keeps the current dealt hands in attributes, so fall back
-        # to snapshot_from_gamecore for hands/manilha
-        base = snapshot_from_gamecore()
-        base["scores"] = scores
-        return base
+        try:
+            snap["player_starts_round"] = getattr(core, "player_starts_round", True)
+            snap["player_starts_hand"] = getattr(core, "player_starts_hand", True)
+        except Exception:
+            snap["player_starts_round"] = snap.get("player_starts_round", True)
+            snap["player_starts_hand"] = snap.get("player_starts_hand", True)
+
+        # If there's a pending truco, include a human-friendly name for display
+        try:
+            pending = snap.get("pending_truco")
+            if pending and hasattr(controller, "truco"):
+                try:
+                    snap["pending_truco_name"] = controller.truco.get_truco_name(pending.get("value"))
+                except Exception:
+                    snap["pending_truco_name"] = None
+        except Exception:
+            pass
+
+        return snap
     except Exception:
         return demo_game_state()
+
+
+def play_card(controller, index: int) -> Dict:
+    """Adapter wrapper for playing a player's card via the controller.
+
+    Returns the controller snapshot after the play.
+    """
+    try:
+        # Use controller's play_player_card (non-blocking controller step)
+        snap = controller.play_player_card(index)
+        return snap
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def opponent_play(controller) -> Dict:
+    """Adapter wrapper for opponent playing a card."""
+    try:
+        return controller.opponent_play()
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def resolve_round(controller) -> Dict:
+    """Adapter wrapper to resolve the currently played round."""
+    try:
+        return controller.resolve_round()
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def call_truco(controller) -> Dict:
+    """Adapter wrapper for initiating a truco from the player."""
+    try:
+        return controller.call_truco()
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def respond_truco(controller, action: str) -> Dict:
+    """Adapter wrapper for responding to a pending truco (accept/run/reraise)."""
+    try:
+        return controller.respond_to_truco(action)
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def flee(controller) -> Dict:
+    """Adapter wrapper for fleeing/run from truco (player runs)."""
+    try:
+        return controller.run()
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def reset_hand(controller) -> Dict:
+    """Adapter wrapper to reset the current hand on the controller and
+    return the resulting snapshot."""
+    try:
+        controller.reset_hand()
+        return snapshot_from_controller(controller)
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
+
+
+def reset_match(controller) -> Dict:
+    """Adapter wrapper to reset the whole match (scores) and start a fresh hand."""
+    try:
+        controller.reset_match()
+        return snapshot_from_controller(controller)
+    except Exception:
+        try:
+            return controller.get_snapshot()
+        except Exception:
+            return demo_game_state()
