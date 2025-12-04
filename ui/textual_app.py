@@ -18,6 +18,7 @@ from ui.widgets.battle_zone_widget import BattleZoneWidget
 from ui.widgets.hand_widget import HandWidget
 from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.prompt_widget import PromptWidget
+from ui.widgets.truco_response_widget import TrucoResponseWidget
 from ui.ui_controller import UIController
 
 # Simple skeleton app for Truco 2000 using Textual
@@ -95,12 +96,13 @@ class TrucoModal(Screen):
         # Reset prompt buttons to defaults
         if prompt:
             try:
+                disabled = self.get_disabled_button_ids(snapshot)
                 prompt.update_actions([
                     ("play", "Jogar"),
                     ("truco", "Truco"),
                     ("run", "Fugir"),
                     ("restart", "Reiniciar"),
-                ])
+                ], disabled_ids=disabled)
             except Exception:
                 pass
 
@@ -183,32 +185,84 @@ class TrucoModal(Screen):
 class TrucoTextualApp(App):
     CSS = """
     Screen {
+        color: #008F11;
         align: center middle;
     }
     # simple styling placeholders
     .main-area {
-        background: $background;
-        border: round $primary;
+        background: #0D0208;
+        border: round #00FF41;
     }
     /* Battle zone (top) and Hand area (bottom) as separate boxed panels */
     .battle-area {
         height: 40%;
-        border: round #3b82f6; /* blue border */
-        background: #071033;   /* dark-blue panel background */
+        border: round #003B00; 
+        background: #0D0208;   
         padding: 1 1;
         margin-bottom: 1;
     }
     .hand-area {
         height: 60%;
-        border: round #3b82f6;
-        background: #071033; 
+        border: round #003B00;
+        background: #0D0208; 
         padding: 1 1;
+    }
+    #hand_container {
+        height: auto;
+        width: 100%;
+    }
+    #card_display {
+        height: auto;
+        width: 100%;
+    }
+    #action_buttons {
+        height: auto;
+        width: 100%;
+    }
+    #card_button_row {
+        height: auto;
+        width: 100%;
+    }
+    #card_button_row Button {
+    padding: 0 0;      # Reduce horizontal padding (left/right)
+    width: 7;          # Fixed small width
+    min-width: 3;      # Override minimum
+    margin: 0 2;  # Add 1 space on left and right of each button
+
     }
     .sidebar {
         width: 36;
-        border: round $secondary;
+        border: round #00FF41;
+        background: #0D0208; 
         padding: 1 1;
-        background: $panel;
+    }
+    PromptWidget {
+        height: auto;
+        width: 100%;
+        margin-top: 1;
+    }
+    TrucoResponseWidget {
+        width: 50;
+        height: 8;
+        border: round $error;
+        background: $surface;
+        layer: overlay;
+        offset: 0% 50%;
+        dock: none;
+    }
+    #truco_response_container {
+        width: 100%;
+        height: 100%;
+        align: left top;
+    }
+    #truco_message {
+        width: 100%;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #truco_buttons {
+        width: 100%;
+        height: auto;
     }
     """
 
@@ -271,15 +325,14 @@ class TrucoTextualApp(App):
         hand.update_hand(self.current_hand_payload, self.selected_index)
         player_card, opponent_card = adapter.battle_from_state(snapshot)
         battle.update_zone(player_card, opponent_card)
-        # Ensure prompt shows default actions (Portuguese labels)
+        # Update prompt button states (Truco/Run)
         try:
             prompt = self.query_one(PromptWidget)
-            prompt.update_actions([
-                ("play", "Jogar"),
-                ("truco", "Truco"),
-                ("run", "Fugir"),
-                ("restart", "Reiniciar"),
-            ])
+            # Disable truco if player cannot raise
+            if not snapshot.get("can_player_raise_truco", True):
+                prompt.truco_btn.disabled = True
+            else:
+                prompt.truco_btn.disabled = False
         except Exception:
             pass
 
@@ -313,6 +366,19 @@ class TrucoTextualApp(App):
                 pass
             return True
         return False
+    
+    def get_disabled_button_ids(self, snapshot: dict) -> list:
+        """Determine which buttons should be disabled based on game state.
+        
+        Returns a list of button ids that should be disabled.
+        """
+        disabled = []
+        
+        # Disable truco button if player cannot raise
+        if not snapshot.get("can_player_raise_truco", True):
+            disabled.append("truco")
+        
+        return disabled
     
     # (on_key is implemented later to include digit handling)
 
@@ -398,226 +464,265 @@ class TrucoTextualApp(App):
         THINK_DELAY = 0.6
         REVEAL_DELAY = 0.8
 
-        # Decide who starts this round (use adapter snapshot so UI doesn't access controller.core)
-        starter_is_player = True
+        # Disable card buttons during this entire sequence
         try:
-            ctrl_snap = adapter.snapshot_from_controller(self.controller)
-            starter_is_player = ctrl_snap.get("player_starts_round", True)
-        except Exception:
-            starter_is_player = True
-
-        sidebar = hand = battle = None
-        try:
-            sidebar = self.query_one(SidebarWidget)
             hand = self.query_one(HandWidget)
-            battle = self.query_one(BattleZoneWidget)
+            hand.set_card_buttons_disabled(True)
         except Exception:
-            pass
+            hand = None
 
-        if starter_is_player:
-            # Player starts: player plays first, then opponent
+        # Main play orchestration
+        try:
+            # Decide who starts this round (use adapter snapshot so UI doesn't access controller.core)
+            starter_is_player = True
             try:
-                snapshot = adapter.play_card(self.controller, index)
+                ctrl_snap = adapter.snapshot_from_controller(self.controller)
+                starter_is_player = ctrl_snap.get("player_starts_round", True)
             except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
+                starter_is_player = True
 
-            # Update runtime UI to show player's played card
-            self.current_hand_codes = snapshot.get("player_hand", [])
-            self.current_hand_payload = adapter.hand_from_state(snapshot)
-            self.selected_index = None
-
-            if sidebar:
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-            if hand:
-                hand.update_hand(self.current_hand_payload, self.selected_index)
-
-            player_card, opponent_card = adapter.battle_from_state(snapshot)
-            # show only player's card for now
-            if battle:
-                battle.update_zone(player_card, None, status_text=f"Você jogou")
-
-            # Opponent thinking delay
-            await asyncio.sleep(THINK_DELAY)
-
-            # Opponent plays
+            sidebar = battle = None
             try:
-                # opponent thinking pause
+                sidebar = self.query_one(SidebarWidget)
+                battle = self.query_one(BattleZoneWidget)
+            except Exception:
+                pass
+
+            if starter_is_player:
+                # Player starts: player plays first, then opponent
                 try:
-                    await asyncio.sleep(OPPONENT_THINK_DELAY)
+                    snapshot = adapter.play_card(self.controller, index)
                 except Exception:
-                    pass
-                snapshot = adapter.opponent_play(self.controller)
-            except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
+                    snapshot = adapter.snapshot_from_controller(self.controller)
 
-            if sidebar:
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-            player_card, opponent_card = adapter.battle_from_state(snapshot)
-            if battle:
-                battle.update_zone(player_card, opponent_card, status_text=f"Oponente jogou")
+                # Update runtime UI to show player's played card
+                self.current_hand_codes = snapshot.get("player_hand", [])
+                self.current_hand_payload = adapter.hand_from_state(snapshot)
+                self.selected_index = None
 
-            # Reveal pause
-            await asyncio.sleep(REVEAL_DELAY)
+                if sidebar:
+                    sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                if hand:
+                    hand.update_hand(self.current_hand_payload, self.selected_index)
 
-            # Resolve round
-            try:
-                snapshot = adapter.resolve_round(self.controller)
-            except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
+                player_card, opponent_card = adapter.battle_from_state(snapshot)
+                # show only player's card for now
+                if battle:
+                    battle.update_zone(player_card, None, status_text=f"Você jogou")
 
-        else:
-            # Opponent starts: opponent plays first, then player
-            # 1) Opponent plays (unless they already played and we pre-rendered their card)
-            try:
-                if not getattr(self.controller, "played", {}).get("opponent"):
-                    # opponent thinking pause before initial opponent play
+                # Opponent thinking delay
+                await asyncio.sleep(THINK_DELAY)
+
+                # Opponent plays
+                try:
+                    # opponent thinking pause
                     try:
                         await asyncio.sleep(OPPONENT_THINK_DELAY)
                     except Exception:
                         pass
                     snapshot = adapter.opponent_play(self.controller)
-                else:
+                except Exception:
                     snapshot = adapter.snapshot_from_controller(self.controller)
-            except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
 
-            # Update UI to show opponent only
-            self.current_hand_payload = adapter.hand_from_state(snapshot)
-            if sidebar:
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-            if hand:
-                # don't change selection yet
-                hand.update_hand(adapter.hand_from_state(snapshot), self.selected_index)
-            player_card, opponent_card = adapter.battle_from_state(snapshot)
-            if battle:
-                # show only opponent for now
-                battle.update_zone(None, opponent_card, status_text=f"Oponente jogou")
-
-            # Short pause so player sees opponent card
-            await asyncio.sleep(THINK_DELAY)
-
-            # 2) Now player plays (we were triggered by player's key)
-            try:
-                snapshot = adapter.play_card(self.controller, index)
-            except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
-
-            # Update runtime UI to show player's played card
-            self.current_hand_codes = snapshot.get("player_hand", [])
-            self.current_hand_payload = adapter.hand_from_state(snapshot)
-            self.selected_index = None
-            if sidebar:
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-            if hand:
-                hand.update_hand(self.current_hand_payload, self.selected_index)
-            player_card, opponent_card = adapter.battle_from_state(snapshot)
-            if battle:
-                battle.update_zone(player_card, opponent_card, status_text=f"Você jogou")
-
-            # Reveal pause before resolving
-            await asyncio.sleep(REVEAL_DELAY)
-
-            # Resolve round
-            try:
-                snapshot = adapter.resolve_round(self.controller)
-            except Exception:
-                snapshot = adapter.snapshot_from_controller(self.controller)
-
-        sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-        self.current_hand_codes = snapshot.get("player_hand", [])
-        self.current_hand_payload = adapter.hand_from_state(snapshot)
-        hand.update_hand(self.current_hand_payload, self.selected_index)
-        player_card, opponent_card = adapter.battle_from_state(snapshot)
-        battle.update_zone(player_card, opponent_card, status_text=f"{snapshot.get('message', '')}")
-
-        # Pause so players can see the played cards, then clear the battle zone
-        try:
-            CLEAR_DELAY = 1.0
-            await asyncio.sleep(CLEAR_DELAY)
-            # Clear the table for the upcoming card placements
-            try:
-                battle.update_zone(None, None, status_text="")
-            except Exception:
-                pass
-        except Exception:
-            pass
-
-        # If the hand continues and the next round starter is the opponent,
-        # have the opponent play immediately so the player sees the opponent's card
-        # before making their selection (matches original CLI behavior).
-        try:
-            ctrl_snap = adapter.snapshot_from_controller(self.controller)
-            if not snapshot.get("hand_ended", False) and not ctrl_snap.get("player_starts_round", True):
-                # Opponent thinking pause then pre-play for the upcoming round (clear player's old card first)
-                try:
-                    await asyncio.sleep(OPPONENT_THINK_DELAY)
-                except Exception:
-                    pass
-                next_snapshot = adapter.opponent_preplay(self.controller)
-                sidebar.update_snapshot(adapter.sidebar_from_state(next_snapshot))
-                self.current_hand_payload = adapter.hand_from_state(next_snapshot)
-                hand.update_hand(self.current_hand_payload, None)
-                player_card, opponent_card = adapter.battle_from_state(next_snapshot)
-                battle.update_zone(player_card, opponent_card, status_text="Oponente jogou")
-        except Exception:
-            pass
-
-        # If the hand is complete (controller signals via hand_ended), show a short banner and auto-deal next hand
-        try:
-            if snapshot.get("hand_ended", False):
-                # show end-of-hand message in sidebar (already set in snapshot['message'])
-                try:
-                    await asyncio.sleep(1.0)
-                except Exception:
-                    pass
-
-                # Refresh snapshot from controller (scores may have changed during resolve)
-                try:
-                    snapshot = adapter.snapshot_from_controller(self.controller)
-                except Exception:
-                    pass
-
-                # Not game-over: proceed to auto-deal next hand
-                # auto-deal next hand (reset via adapter)
-                snapshot = adapter.reset_hand(self.controller)
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-                self.current_hand_codes = snapshot.get("player_hand", [])
-                self.current_hand_payload = adapter.hand_from_state(snapshot)
-                hand.update_hand(self.current_hand_payload, None)
+                if sidebar:
+                    sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
                 player_card, opponent_card = adapter.battle_from_state(snapshot)
-                battle.update_zone(player_card, opponent_card)
-                    # If the opponent starts the new hand, pre-play their card so the player
-                    # sees it before selecting their card (matches original CLI behavior).
+                if battle:
+                    battle.update_zone(player_card, opponent_card, status_text=f"Oponente jogou")
+
+                # Reveal pause
+                await asyncio.sleep(REVEAL_DELAY)
+
+                # Resolve round
                 try:
-                    if not snapshot.get("player_starts_round", True):
+                    snapshot = adapter.resolve_round(self.controller)
+                except Exception:
+                    snapshot = adapter.snapshot_from_controller(self.controller)
+
+            else:
+                # Opponent starts: opponent plays first, then player
+                # 1) Opponent plays (unless they already played and we pre-rendered their card)
+                try:
+                    if not getattr(self.controller, "played", {}).get("opponent"):
+                        # opponent thinking pause before initial opponent play
                         try:
                             await asyncio.sleep(OPPONENT_THINK_DELAY)
                         except Exception:
                             pass
-                        snapshot = adapter.opponent_preplay(self.controller)
-                        sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-                        self.current_hand_payload = adapter.hand_from_state(snapshot)
-                        hand.update_hand(self.current_hand_payload, None)
-                        player_card, opponent_card = adapter.battle_from_state(snapshot)
-                        battle.update_zone(player_card, opponent_card, status_text="Oponente jogou")
+                        snapshot = adapter.opponent_play(self.controller)
+                    else:
+                        snapshot = adapter.snapshot_from_controller(self.controller)
+                except Exception:
+                    snapshot = adapter.snapshot_from_controller(self.controller)
+
+                # Update UI to show opponent only
+                self.current_hand_payload = adapter.hand_from_state(snapshot)
+                if sidebar:
+                    sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                if hand:
+                    # don't change selection yet
+                    hand.update_hand(adapter.hand_from_state(snapshot), self.selected_index)
+                player_card, opponent_card = adapter.battle_from_state(snapshot)
+                if battle:
+                    # show only opponent for now
+                    battle.update_zone(None, opponent_card, status_text=f"Oponente jogou")
+
+                # Short pause so player sees opponent card
+                await asyncio.sleep(THINK_DELAY)
+
+                # 2) Now player plays (we were triggered by player's key)
+                try:
+                    snapshot = adapter.play_card(self.controller, index)
+                except Exception:
+                    snapshot = adapter.snapshot_from_controller(self.controller)
+
+                # Update runtime UI to show player's played card
+                self.current_hand_codes = snapshot.get("player_hand", [])
+                self.current_hand_payload = adapter.hand_from_state(snapshot)
+                self.selected_index = None
+                if sidebar:
+                    sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                if hand:
+                    hand.update_hand(self.current_hand_payload, self.selected_index)
+                player_card, opponent_card = adapter.battle_from_state(snapshot)
+                if battle:
+                    battle.update_zone(player_card, opponent_card, status_text=f"Você jogou")
+
+                # Reveal pause before resolving
+                await asyncio.sleep(REVEAL_DELAY)
+
+                # Resolve round
+                try:
+                    snapshot = adapter.resolve_round(self.controller)
+                except Exception:
+                    snapshot = adapter.snapshot_from_controller(self.controller)
+
+            sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+            self.current_hand_codes = snapshot.get("player_hand", [])
+            self.current_hand_payload = adapter.hand_from_state(snapshot)
+            hand.update_hand(self.current_hand_payload, self.selected_index)
+            player_card, opponent_card = adapter.battle_from_state(snapshot)
+            battle.update_zone(player_card, opponent_card, status_text=f"{snapshot.get('message', '')}")
+
+            # Pause so players can see the played cards, then clear the battle zone
+            try:
+                CLEAR_DELAY = 1.0
+                await asyncio.sleep(CLEAR_DELAY)
+                # Clear the table for the upcoming card placements
+                try:
+                    battle.update_zone(None, None, status_text="")
                 except Exception:
                     pass
+            except Exception:
+                pass
+
+            # If the hand continues and the next round starter is the opponent,
+            # have the opponent play immediately so the player sees the opponent's card
+            # before making their selection (matches original CLI behavior).
+            try:
+                ctrl_snap = adapter.snapshot_from_controller(self.controller)
+                if not snapshot.get("hand_ended", False) and not ctrl_snap.get("player_starts_round", True):
+                    # Opponent thinking pause then pre-play for the upcoming round (clear player's old card first)
+                    try:
+                        await asyncio.sleep(OPPONENT_THINK_DELAY)
+                    except Exception:
+                        pass
+                    next_snapshot = adapter.opponent_preplay(self.controller)
+                    sidebar.update_snapshot(adapter.sidebar_from_state(next_snapshot))
+                    self.current_hand_payload = adapter.hand_from_state(next_snapshot)
+                    hand.update_hand(self.current_hand_payload, None)
+                    player_card, opponent_card = adapter.battle_from_state(next_snapshot)
+                    battle.update_zone(player_card, opponent_card, status_text="Oponente jogou")
+            except Exception:
+                pass
+
+            # If the hand is complete (controller signals via hand_ended), show a short banner and auto-deal next hand
+            try:
+                if snapshot.get("hand_ended", False):
+                    # show end-of-hand message in sidebar (already set in snapshot['message'])
+                    try:
+                        await asyncio.sleep(1.0)
+                    except Exception:
+                        pass
+
+                    # Refresh snapshot from controller (scores may have changed during resolve)
+                    try:
+                        snapshot = adapter.snapshot_from_controller(self.controller)
+                    except Exception:
+                        pass
+
+                    # Not game-over: proceed to auto-deal next hand
+                    # auto-deal next hand (reset via adapter)
+                    snapshot = adapter.reset_hand(self.controller)
+                    sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                    self.current_hand_codes = snapshot.get("player_hand", [])
+                    self.current_hand_payload = adapter.hand_from_state(snapshot)
+                    hand.update_hand(self.current_hand_payload, None)
+                    player_card, opponent_card = adapter.battle_from_state(snapshot)
+                    battle.update_zone(player_card, opponent_card)
+                    
+                    # Update prompt buttons with new disabled state
+                    try:
+                        prompt = self.query_one(PromptWidget)
+                        # Update truco button state
+                        if not snapshot.get("can_player_raise_truco", True):
+                            prompt.truco_btn.disabled = True
+                        else:
+                            prompt.truco_btn.disabled = False
+                    except Exception:
+                        pass
+                    
+                    # Re-enable card buttons for next hand
+                    try:
+                        hand.set_card_buttons_disabled(False)
+                    except Exception:
+                        pass
+                    
+                    # If the opponent starts the new hand, pre-play their card so the player
+                        # sees it before selecting their card (matches original CLI behavior).
+                    try:
+                        if not snapshot.get("player_starts_round", True):
+                            try:
+                                await asyncio.sleep(OPPONENT_THINK_DELAY)
+                            except Exception:
+                                pass
+                            snapshot = adapter.opponent_preplay(self.controller)
+                            sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                            self.current_hand_payload = adapter.hand_from_state(snapshot)
+                            hand.update_hand(self.current_hand_payload, None)
+                            player_card, opponent_card = adapter.battle_from_state(snapshot)
+                            battle.update_zone(player_card, opponent_card, status_text="Oponente jogou")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         except Exception:
             pass
+        finally:
+            # Ensure card buttons are re-enabled when play_card completes
+            try:
+                hand = self.query_one(HandWidget)
+                hand.set_card_buttons_disabled(False)
+            except Exception:
+                pass
 
     async def on_button_pressed(self, event) -> None:
-        # Handle PromptWidget button presses at the App level
+        # Handle button presses from HandWidget (card buttons) and PromptWidget (truco/run)
         btn_id = getattr(event.button, "id", None)
-        if btn_id == "play":
-            # If a selection exists, play it; otherwise instruct user
-            if self.selected_index:
-                await self.play_card(self.selected_index)
-            else:
-                try:
-                    sidebar = self.query_one(SidebarWidget)
-                    sidebar.update_snapshot({"scores": {"player": 0, "opponent": 0}, "carta_vira": "-", "manilha": "-", "round_results": [], "message": "Pressione 1/2/3 para selecionar carta"})
-                except Exception:
-                    pass
+        if not btn_id:
+            return
+        
+        # Card button clicks: card_1, card_2, card_3
+        if btn_id.startswith("card_"):
+            try:
+                card_num = int(btn_id.split("_")[1])
+                if 1 <= card_num <= len(self.current_hand_codes):
+                    await self.play_card(card_num)
+            except Exception:
+                pass
+            return
+        
+        # Main action buttons
         elif btn_id == "truco":
             try:
                 # call controller.truco and update via adapter
@@ -636,19 +741,25 @@ class TrucoTextualApp(App):
                 player_card, opponent_card = adapter.battle_from_state(snapshot)
                 battle.update_zone(player_card, opponent_card)
 
-                # If snapshot indicates a pending truco, either show modal or switch the prompt buttons inline
+                # If snapshot indicates a pending truco, show truco response banner
                 if snapshot.get("pending_truco"):
                     try:
-                        if GameConfig.USE_MODAL_TRUCO:
-                            # Push the modal screen to ask the player
-                            await self.push_screen(TrucoModal())
-                        elif prompt:
-                            prompt.update_actions([
-                                ("accept", "Aceitar"),
-                                ("reraise", "Aumentar"),
-                                ("run", "Fugir"),
-                                ("restart", "Reiniciar"),
-                            ])
+                        pending_name = snapshot.get("pending_truco_name", "Truco")
+                        # Show truco response widget inside hand-area container
+                        hand_area = self.query_one(".hand-area")
+                        truco_response = TrucoResponseWidget(pending_name)
+                        # Mount it inside hand-area as overlay
+                        await hand_area.mount(truco_response)
+                        # Disable card buttons during truco negotiation
+                        try:
+                            hand.set_card_buttons_disabled(True)
+                        except Exception:
+                            pass
+                        # Disable truco button during pending truco
+                        try:
+                            prompt.truco_btn.disabled = True
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                 # After call_truco, refresh snapshot and check for game over in case points were awarded
@@ -679,6 +790,19 @@ class TrucoTextualApp(App):
                             battle.update_zone(player_card, opponent_card)
                         except Exception:
                             pass
+                        
+                        # Update prompt buttons with new disabled state
+                        try:
+                            disabled = self.get_disabled_button_ids(snapshot)
+                            prompt.update_actions([
+                                ("play", "Jogar"),
+                                ("truco", "Truco"),
+                                ("run", "Fugir"),
+                                ("restart", "Reiniciar"),
+                            ], disabled_ids=disabled)
+                        except Exception:
+                            pass
+                        
                         try:
                             if not snapshot.get("player_starts_round", True):
                                 try:
@@ -707,11 +831,19 @@ class TrucoTextualApp(App):
             except Exception:
                 pass
 
-        elif btn_id in ("accept", "reraise"):
-            # Inline handling for responding to a pending truco (from PromptWidget)
+        elif btn_id in ("truco_accept", "truco_reraise", "truco_run"):
+            # Handle truco response buttons from TrucoResponseWidget
             try:
-                action = "accept" if btn_id == "accept" else "reraise"
-                snapshot = adapter.respond_truco(self.controller, action)
+                action_map = {
+                    "truco_accept": "accept",
+                    "truco_run": "run",
+                    "truco_reraise": "reraise"
+                }
+                action = action_map.get(btn_id)
+                if action:
+                    snapshot = adapter.respond_truco(self.controller, action)
+                else:
+                    snapshot = adapter.snapshot_from_controller(self.controller)
             except Exception:
                 snapshot = adapter.snapshot_from_controller(self.controller)
 
@@ -719,9 +851,8 @@ class TrucoTextualApp(App):
                 sidebar = self.query_one(SidebarWidget)
                 hand = self.query_one(HandWidget)
                 battle = self.query_one(BattleZoneWidget)
-                prompt = self.query_one(PromptWidget)
             except Exception:
-                sidebar = hand = battle = prompt = None
+                sidebar = hand = battle = None
 
             if sidebar:
                 sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
@@ -734,26 +865,44 @@ class TrucoTextualApp(App):
                 player_card, opponent_card = adapter.battle_from_state(snapshot)
                 battle.update_zone(player_card, opponent_card)
 
-            # If still pending (opponent re-raised), leave inline buttons showing new pending options
-            if prompt:
-                try:
-                    if snapshot.get("pending_truco"):
-                        prompt.update_actions([
-                            ("accept", "Aceitar"),
-                            ("reraise", "Aumentar"),
-                            ("run", "Fugir"),
-                            ("restart", "Reiniciar"),
-                        ])
-                    else:
-                        # restore default prompt
-                        prompt.update_actions([
-                            ("play", "Jogar"),
-                            ("truco", "Truco"),
-                            ("run", "Fugir"),
-                            ("restart", "Reiniciar"),
-                        ])
-                except Exception:
-                    pass
+            # If still pending (opponent re-raised), update truco response widget
+            try:
+                if snapshot.get("pending_truco"):
+                    pending_name = snapshot.get("pending_truco_name", "Truco")
+                    try:
+                        truco_response = self.query_one(TrucoResponseWidget)
+                        truco_response.update_message(pending_name)
+                    except Exception:
+                        # Widget doesn't exist yet, create it
+                        try:
+                            hand_area = self.query_one(".hand-area")
+                            truco_response = TrucoResponseWidget(pending_name)
+                            await hand_area.mount(truco_response)
+                        except Exception:
+                            pass
+                else:
+                    # Hand ended or no pending truco, remove overlay and re-enable buttons
+                    try:
+                        truco_response = self.query_one(TrucoResponseWidget)
+                        truco_response.remove()
+                    except Exception:
+                        pass
+                    # Re-enable card buttons
+                    try:
+                        hand = self.query_one(HandWidget)
+                        hand.set_card_buttons_disabled(False)
+                    except Exception:
+                        pass
+                    # Re-enable truco button
+                    try:
+                        prompt = self.query_one(PromptWidget)
+                        if snapshot.get("can_player_raise_truco", True):
+                            prompt.truco_btn.disabled = False
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
             # If the response awarded points and ended the match, navigate to main menu
             try:
                 # Refresh snapshot to ensure any score changes are visible
@@ -914,27 +1063,9 @@ class TrucoTextualApp(App):
                     pass
             except Exception:
                 pass
-        elif btn_id == "restart":
-            # Restart the game (reset controller and UI)
-            try:
-                # reset full match scores then start
-                try:
-                    # Reset full match via adapter and then start
-                    adapter.reset_match(self.controller)
-                except Exception:
-                    pass
-                await self.start_game()
-                # If menu is visible, remove it
-                try:
-                    # close menu if present
-                    self.pop_screen()
-                except Exception:
-                    pass
-            except Exception:
-                pass
 
     async def on_key(self, event) -> None:
-        # Quick keys: m -> open menu, q -> quit, d -> demo snapshot
+        # Quick keys: m -> menu, q -> quit, w -> restart, 1/2/3 -> play card
         try:
             key = event.key
         except Exception:
@@ -944,7 +1075,13 @@ class TrucoTextualApp(App):
             await self.push_screen(MainMenu())
         elif key == "q":
             self.exit()
-        # note: demo (d) and gamecore (g) shortcuts removed; start the game via menu
+        elif key == "w":
+            # Restart the match
+            try:
+                adapter.reset_match(self.controller)
+            except Exception:
+                pass
+            await self.start_game()
         elif key in ("left", "arrow_left"):
             # move selection left (wrap)
             if self.current_hand_codes:

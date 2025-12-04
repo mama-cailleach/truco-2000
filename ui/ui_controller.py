@@ -60,6 +60,14 @@ class UIController:
         self.reset_hand()
 
     def get_snapshot(self) -> Dict:
+        # Get pending truco name if one exists
+        pending_truco_name = None
+        if self.pending_truco:
+            try:
+                pending_truco_name = self.truco.get_truco_name(self.pending_truco.get("value"))
+            except Exception:
+                pending_truco_name = "Truco"
+        
         return {
             "scores": {"player": self.core.pontos_jogador, "opponent": self.core.pontos_oponente},
             "carta_vira": self.carta_vira,
@@ -69,7 +77,9 @@ class UIController:
             "played": self.played.copy(),
             "message": self.message,
             "pending_truco": self.pending_truco,
+            "pending_truco_name": pending_truco_name,
             "hand_ended": getattr(self, "hand_ended", False),
+            "can_player_raise_truco": self.truco.can_raise_truco("Jogador"),
         }
 
     # --- Split play flow into explicit steps so UI can animate/delay ---
@@ -202,6 +212,12 @@ class UIController:
     def call_truco(self) -> Dict:
         # Player initiates a truco request. We drive a single step of negotiation
         # and return either a completed result or a pending request for the UI.
+        
+        # First, check if player can raise truco (not the last raiser, and not at max value)
+        if not self.truco.can_raise_truco("Jogador"):
+            self.message = "Você não pode aumentar agora (você aumentou por último)"
+            return self.get_snapshot()
+        
         next_value = self.truco.get_next_truco_value()
         if next_value is None:
             self.message = "Já no valor máximo de truco"
@@ -215,8 +231,8 @@ class UIController:
             self.message = f"Oponente aceitou {self.truco.get_truco_name(next_value)}"
             return self.get_snapshot()
         elif response == 'run':
-            # Opponent fled — award last accepted points
-            last_accepted = self.truco.current_hand_value
+            # Opponent fled — award last accepted points (before this raise proposal)
+            last_accepted = self.truco.last_accepted_value
             winner, points = self.truco.calculate_points_for_runner('Oponente', next_value, last_accepted)
             self.core.update_score(winner, points)
             self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
@@ -238,6 +254,7 @@ class UIController:
                 return self.get_snapshot()
 
             # Create pending truco for the UI to respond to
+            # last_accepted is the current_hand_value (since the opponent's re-raise is a new proposal)
             self.pending_truco = {
                 "value": opp_new,
                 "raiser": "Oponente",
@@ -248,9 +265,9 @@ class UIController:
 
     def run(self) -> Dict:
         # Player runs from truco: calculate points based on current truco state
-        final_value = self.truco.current_hand_value
-        last_accepted = self.truco.current_hand_value
-        winner, points = self.truco.calculate_points_for_runner("Jogador", final_value, last_accepted)
+        # Use last_accepted_value (not current_hand_value) as the points to award
+        last_accepted = self.truco.last_accepted_value
+        winner, points = self.truco.calculate_points_for_runner("Jogador", self.truco.current_hand_value, last_accepted)
         self.core.update_score(winner, points)
         self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
         # Mark the hand as ended and set the next hand/round starter to opponent

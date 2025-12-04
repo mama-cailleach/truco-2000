@@ -34,9 +34,9 @@ class BattleZoneWidget(Static):
 
         # Build merged lines
         merged: List[str] = []
-        merged.append("MESA".center(len(left[0]) + 3 + len(center[0]) + len(right[0]) + 4))
+        merged.append("MESA".center(len(left[0]) + 15 + len(center[0]) + len(right[0]) + 4))
         for i in range(card_height):
-            merged.append(f"{left[i]}   {center[i]}   {right[i]}")
+            merged.append(f"{left[i]}   {center[i]}                    {right[i]}")
 
         return "\n".join(merged)
 

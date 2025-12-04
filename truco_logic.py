@@ -26,6 +26,7 @@ class TrucoLogic:
         """Initialize truco state tracking."""
         # Truco state tracking
         self.current_hand_value = 1  # Current value of the hand (1, 3, 6, 9, 12)
+        self.last_accepted_value = 1  # Last value that was explicitly accepted (for defensive tracking)
         self.last_raiser = None  # Who made the last raise ("Jogador" or "Oponente")
         self.truco_names = {1: "Normal", 3: "Truco", 6: "Retruco", 9: "Vale 9", 12: "Vale 12"}
     
@@ -36,6 +37,7 @@ class TrucoLogic:
         Should be called at the beginning of each new hand.
         """
         self.current_hand_value = 1
+        self.last_accepted_value = 1
         self.last_raiser = None
     
     def can_raise_truco(self, player, current_value=None):
@@ -235,35 +237,45 @@ class TrucoLogic:
     
     def update_truco_state(self, new_value, raiser):
         """
-        Update the internal truco state.
+        Update the internal truco state when a raise is ACCEPTED.
+        
+        This is called after a re-raise is accepted or when initial raise is accepted.
+        It updates current_hand_value and marks new_value as the last_accepted_value.
         
         Args:
-            new_value (int): New hand value
+            new_value (int): New hand value (the accepted value)
             raiser (str): Who made the raise that resulted in this value
         """
         self.current_hand_value = new_value
+        self.last_accepted_value = new_value  # When accepted, it becomes the new baseline for next run
         self.last_raiser = raiser
     
     def calculate_points_for_runner(self, who_ran, final_value, last_accepted_value):
         """
         Calculate points when someone runs from truco.
         
+        When someone runs from a raise, the other player wins the last ACCEPTED value,
+        not the proposed value. For example:
+          - Player calls Truco(3) -> opponent accepts (3 is now accepted)
+          - Opponent re-raises to Retruco(6) -> player RUNS
+          - Player GIVES 3 points to opponent (the last accepted), not 6
+        
         Args:
-            who_ran (str): "Jogador" or "Oponente"
-            final_value (int): Value that caused the run
-            last_accepted_value (int): Last value that was accepted
+            who_ran (str): "Jogador" or "Oponente" (who refused the raise)
+            final_value (int): Value that was proposed (caused the run) [used for validation only]
+            last_accepted_value (int): Last value that was accepted before the raise
             
         Returns:
             tuple: (winner, points_awarded)
-                - winner (str): Who gets the points
-                - points_awarded (int): How many points they get
+                - winner (str): Who gets the points (the other player from who_ran)
+                - points_awarded (int): Points = last_accepted_value
         """
         if who_ran == "Jogador":
             winner = "Oponente"
         else:
             winner = "Jogador"
         
-        # Award the last accepted value (the value before the raise that caused the run)
+        # Award the last accepted value (the value that was accepted before the raise that caused the run)
         points_awarded = last_accepted_value
         
         return winner, points_awarded
