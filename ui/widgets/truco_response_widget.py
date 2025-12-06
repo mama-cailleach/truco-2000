@@ -1,9 +1,7 @@
-from textual.widgets import Static, Button
-from textual.containers import Horizontal, Vertical
-from textual.app import ComposeResult
+from ui.widgets.game_banner import GameBanner
 
 
-class TrucoResponseWidget(Static):
+class TrucoResponseWidget(GameBanner):
     """Banner widget shown when player must respond to opponent's truco call/reraise.
     
     Displays the pending value and offers Accept, Run, Reraise buttons.
@@ -11,22 +9,21 @@ class TrucoResponseWidget(Static):
     """
     
     def __init__(self, pending_truco_name: str = "Truco", **kwargs):
-        super().__init__(**kwargs)
         self.pending_truco_name = pending_truco_name
-    
-    def compose(self) -> ComposeResult:
-        with Vertical(id="truco_response_container"):
-            yield Static(f"Oponente pediu {self.pending_truco_name}", id="truco_message", classes="truco_title")
-            with Horizontal(id="truco_buttons"):
-                yield Button("Aceitar", id="truco_accept", variant="primary")
-                yield Button("Fugir", id="truco_run", variant="warning")
-                yield Button("Aumentar", id="truco_reraise", variant="default")
+        buttons = [
+            ("Aceitar", "truco_accept", "primary"),
+            ("Fugir", "truco_run", "warning"),
+            ("Aumentar", "truco_reraise", "default"),
+        ]
+        super().__init__(
+            message=f"Oponente pediu {pending_truco_name}",
+            buttons=buttons,
+            banner_id="truco_response",
+            message_classes="truco_title",
+            **kwargs
+        )
     
     def update_message(self, pending_truco_name: str):
         """Update the pending truco message."""
         self.pending_truco_name = pending_truco_name
-        try:
-            msg_widget = self.query_one("#truco_message", Static)
-            msg_widget.update(f"Oponente pediu {pending_truco_name}")
-        except Exception:
-            pass
+        super().update_message(f"Oponente pediu {pending_truco_name}")

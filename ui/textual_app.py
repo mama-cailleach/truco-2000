@@ -19,7 +19,9 @@ from ui.widgets.hand_widget import HandWidget
 from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.prompt_widget import PromptWidget
 from ui.widgets.truco_response_widget import TrucoResponseWidget
+from ui.widgets.win_banner_widget import WinBannerWidget
 from ui.ui_controller import UIController
+from ui.ascii_art import ASCIIArt
 
 # Simple skeleton app for Truco 2000 using Textual
 class TrucoModal(Screen):
@@ -241,28 +243,102 @@ class TrucoTextualApp(App):
         width: 100%;
         margin-top: 1;
     }
-    TrucoResponseWidget {
-        width: 50;
-        height: 8;
-        border: round $error;
-        background: $surface;
+    
+    /* Base GameBanner styles */
+    GameBanner {
         layer: overlay;
-        offset: 0% 50%;
         dock: none;
+        border: round #00FF41;
+        background: #0D0208;
+        padding: 1 2;
     }
-    #truco_response_container {
-        width: 100%;
-        height: 100%;
-        align: left top;
-    }
-    #truco_message {
-        width: 100%;
-        text-align: center;
-        margin-bottom: 1;
-    }
-    #truco_buttons {
+    
+    /* GameBanner container and content defaults */
+    GameBanner > Vertical {
         width: 100%;
         height: auto;
+        align: center middle;
+        row-span: 1;
+    }
+    
+    GameBanner Static {
+        width: 100%;
+        text-align: center;
+    }
+    
+    GameBanner Horizontal {
+        width: 100%;
+        height: auto;
+        align: center middle;
+        column-span: 2;
+    }
+    
+    /* Specific banner overrides */
+    TrucoResponseWidget {
+        width: 60;
+        height: 10;
+        border: round $error;
+        background: $surface;
+        offset: 0% 50%;
+    }
+    
+    WinBannerWidget {
+        width: 60;
+        height: auto;
+        offset: 0% 0%;
+    }
+    
+    #win_banner_buttons Button {
+        min-width: 14;
+        margin: 0 2;
+    }
+    
+    #truco_response_message {
+        margin-bottom: 1;
+    }
+    
+    /* Main Menu styles */
+    MainMenu {
+        background: #0D0208;
+        align: center middle;
+    }
+    
+    #menu_container {
+        width: 80%;
+        height: auto;
+        align: center middle;
+    }
+    
+    #menu_banner {
+        color: #00FF41;
+        text-align: left;
+        width: 100%;
+        margin-bottom: 0;
+    }
+
+    #menu_card_banner {
+        color: #00FF41;
+        text-align: left;
+        width: 100%;
+        margin-bottom: 0;
+    }
+    
+    #menu_subtitle {
+        color: #008F11;
+        text-align: left;
+        width: 100%;
+        margin-bottom: 0;
+    }
+    
+    #menu_buttons {
+        width: 20;
+        align: center middle;
+        margin-left: 21;
+    }
+    
+    #menu_buttons Button {
+        width: 100%;
+        margin: 1 2;
     }
     """
 
@@ -292,6 +368,7 @@ class TrucoTextualApp(App):
     current_hand_codes: list = []
     current_hand_payload: list = []
     selected_index: int | None = None
+    game_over_active: bool = False
 
     async def on_mount(self) -> None:
         # Show the main menu on start
@@ -305,6 +382,20 @@ class TrucoTextualApp(App):
         This is called when the player presses Start in the main menu or when
         the Restart action is chosen.
         """
+        # Clear any lingering game-over banner/state
+        self.game_over_active = False
+        self.remove_win_banner()
+        try:
+            prompt = self.query_one(PromptWidget)
+            prompt.truco_btn.disabled = False
+            prompt.run_btn.disabled = False
+        except Exception:
+            pass
+        try:
+            hand_widget = self.query_one(HandWidget)
+            hand_widget.set_card_buttons_disabled(False)
+        except Exception:
+            pass
         try:
             # Reset controller state for a new hand/game via adapter
             snapshot = adapter.reset_hand(self.controller)
@@ -337,9 +428,9 @@ class TrucoTextualApp(App):
             pass
 
     async def handle_game_over(self, snapshot: dict) -> bool:
-        """If either player reached the winning score, show final snapshot and return to main menu.
+        """If either player reached the winning score, show the win banner overlay.
 
-        Returns True if the game was over and the main menu was pushed, False otherwise.
+        Returns True if the game was over (banner shown), False otherwise.
         """
         try:
             p_score = snapshot.get("scores", {}).get("player", 0)
@@ -347,25 +438,58 @@ class TrucoTextualApp(App):
         except Exception:
             p_score = o_score = 0
 
-        if p_score >= GameConfig.WINNING_SCORE or o_score >= GameConfig.WINNING_SCORE:
-            # Ensure final snapshot is visible in sidebar
-            try:
-                sidebar = self.query_one(SidebarWidget)
-                sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
-            except Exception:
-                pass
-            # Small pause so the player sees final scores
-            try:
-                await asyncio.sleep(0.8)
-            except Exception:
-                pass
-            # Push main menu so player can restart or quit
-            try:
-                await self.push_screen(MainMenu())
-            except Exception:
-                pass
+        if p_score < GameConfig.WINNING_SCORE and o_score < GameConfig.WINNING_SCORE:
+            # No winner yet; ensure flag is clear
+            self.game_over_active = False
+            return False
+
+        # Already showing banner; keep it alive
+        if self.game_over_active:
             return True
-        return False
+
+        self.game_over_active = True
+
+        # Ensure final snapshot is visible in sidebar
+        try:
+            sidebar = self.query_one(SidebarWidget)
+            sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+        except Exception:
+            pass
+
+        # Disable primary interactions
+        try:
+            hand_widget = self.query_one(HandWidget)
+            hand_widget.set_card_buttons_disabled(True)
+        except Exception:
+            pass
+        try:
+            prompt = self.query_one(PromptWidget)
+            prompt.truco_btn.disabled = True
+            prompt.run_btn.disabled = True
+        except Exception:
+            pass
+        # Remove any truco overlay that might still be present
+        try:
+            truco_overlay = self.query_one(TrucoResponseWidget)
+            truco_overlay.remove()
+        except Exception:
+            pass
+
+        # Mount the win banner over the battle area
+        try:
+            battle_area = self.query_one(".battle-area")
+            try:
+                existing_banner = self.query_one(WinBannerWidget)
+                existing_banner.remove()
+            except Exception:
+                pass
+            winner_text = "Você venceu o jogo!" if p_score >= GameConfig.WINNING_SCORE else "Oponente venceu o jogo!"
+            banner = WinBannerWidget(winner_text=winner_text)
+            await battle_area.mount(banner)
+        except Exception:
+            pass
+
+        return True
     
     def get_disabled_button_ids(self, snapshot: dict) -> list:
         """Determine which buttons should be disabled based on game state.
@@ -379,6 +503,14 @@ class TrucoTextualApp(App):
             disabled.append("truco")
         
         return disabled
+
+    def remove_win_banner(self) -> None:
+        """Remove the win banner overlay if it is mounted."""
+        try:
+            banner = self.query_one(WinBannerWidget)
+            banner.remove()
+        except Exception:
+            pass
     
     # (on_key is implemented later to include digit handling)
 
@@ -604,6 +736,14 @@ class TrucoTextualApp(App):
             player_card, opponent_card = adapter.battle_from_state(snapshot)
             battle.update_zone(player_card, opponent_card, status_text=f"{snapshot.get('message', '')}")
 
+            # If the match just ended, show banner and stop further flow
+            try:
+                game_over = await self.handle_game_over(snapshot)
+                if game_over:
+                    return
+            except Exception:
+                pass
+
             # Pause so players can see the played cards, then clear the battle zone
             try:
                 CLEAR_DELAY = 1.0
@@ -702,7 +842,7 @@ class TrucoTextualApp(App):
             # Ensure card buttons are re-enabled when play_card completes
             try:
                 hand = self.query_one(HandWidget)
-                hand.set_card_buttons_disabled(False)
+                hand.set_card_buttons_disabled(self.game_over_active)
             except Exception:
                 pass
 
@@ -710,6 +850,32 @@ class TrucoTextualApp(App):
         # Handle button presses from HandWidget (card buttons) and PromptWidget (truco/run)
         btn_id = getattr(event.button, "id", None)
         if not btn_id:
+            return
+
+        # If game is over, only allow win-banner actions
+        if self.game_over_active and btn_id not in ("win_play_again", "win_menu", "win_quit"):
+            return
+
+        # Win banner actions
+        if btn_id == "win_play_again":
+            try:
+                adapter.reset_match(self.controller)
+            except Exception:
+                pass
+            self.game_over_active = False
+            self.remove_win_banner()
+            await self.start_game()
+            return
+        elif btn_id == "win_menu":
+            self.game_over_active = False
+            self.remove_win_banner()
+            try:
+                await self.push_screen(MainMenu())
+            except Exception:
+                pass
+            return
+        elif btn_id == "win_quit":
+            self.exit()
             return
         
         # Card button clicks: card_1, card_2, card_3
@@ -1071,7 +1237,13 @@ class TrucoTextualApp(App):
         except Exception:
             return
 
+        # If game is over, only allow restart/menu/quit shortcuts
+        if self.game_over_active and key not in ("m", "q", "w"):
+            return
+
         if key == "m":
+            self.game_over_active = False
+            self.remove_win_banner()
             await self.push_screen(MainMenu())
         elif key == "q":
             self.exit()
@@ -1081,6 +1253,8 @@ class TrucoTextualApp(App):
                 adapter.reset_match(self.controller)
             except Exception:
                 pass
+            self.game_over_active = False
+            self.remove_win_banner()
             await self.start_game()
         elif key in ("left", "arrow_left"):
             # move selection left (wrap)
@@ -1119,13 +1293,26 @@ class TrucoTextualApp(App):
                 await self.play_card(idx)
 
 class MainMenu(Screen):
-    """A minimal main menu screen with Start/Quit actions."""
+    """Main menu screen with ASCII art banner and game options."""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ascii_art = ASCIIArt()
+    
     def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Static("Truco 2000", classes="title")
-            yield Static("Press Start to enter the game (or press 'q' to quit)", classes="subtitle")
-            yield Button("Start Game", id="start")
-            yield Button("Quit", id="quit")
+        with Vertical(id="menu_container"):
+            # ASCII art banner
+            yield Static(self.ascii_art.get_intro_banner(), id="menu_banner", classes="banner_art")
+            # Card banner
+            yield Static(self.ascii_art.get_card_decoration(), id="menu_card_banner", classes="card_banner_art")
+            # Game subtitle
+            yield Static(self.ascii_art.get_game_subtitle(), id="menu_subtitle", classes="subtitle_art")
+            # Button container
+            with Vertical(id="menu_buttons"):
+                yield Button("Jogar", id="start", variant="success")
+                yield Button("Configurações", id="settings", variant="primary")
+                yield Button("Tutorial", id="tutorial", variant="default")
+                #yield Button("Sair", id="quit", variant="error")
 
     async def on_button_pressed(self, event) -> None:
         btn_id = getattr(event.button, "id", None)
@@ -1140,6 +1327,12 @@ class MainMenu(Screen):
                 self.app.pop_screen()
             except Exception:
                 pass
+        elif btn_id == "settings":
+            # Placeholder for settings screen
+            pass
+        elif btn_id == "tutorial":
+            # Placeholder for tutorial screen
+            pass
         elif btn_id == "quit":
             self.app.exit()
 
