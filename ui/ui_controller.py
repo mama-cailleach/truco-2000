@@ -254,11 +254,11 @@ class UIController:
                 return self.get_snapshot()
 
             # Create pending truco for the UI to respond to
-            # last_accepted is the current_hand_value (since the opponent's re-raise is a new proposal)
+            # By re-raising, opponent implicitly accepted next_value, so it becomes last_accepted
             self.pending_truco = {
                 "value": opp_new,
                 "raiser": "Oponente",
-                "last_accepted": self.truco.current_hand_value,
+                "last_accepted": next_value,
             }
             self.message = f"Oponente pediu {self.truco.get_truco_name(opp_new)} - Aceitar / Fugir / Aumentar?"
             return self.get_snapshot()
@@ -335,6 +335,7 @@ class UIController:
                 self.pending_truco = None
                 return self.get_snapshot()
             elif opp_resp == 'run':
+                # Opponent runs from player's re-raise; player wins value (what was implicitly accepted)
                 winner, points = self.truco.calculate_points_for_runner('Oponente', next_val, value)
                 self.core.update_score(winner, points)
                 self.message = f"{winner} ganha {points} ponto(s) (fugiu)"
