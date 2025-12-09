@@ -30,6 +30,7 @@ def demo_game_state() -> Dict:
         "player_hand": ["A♠", "7♥", "3♦"],
         # played cards (None if not played yet)
         "played": {"player": "A♠", "opponent": "K♣"},
+        "current_hand_value": 1,
     }
 
 
@@ -41,6 +42,7 @@ def sidebar_from_state(state: Dict) -> Dict:
         "manilha": state.get("manilha", "-"),
         "round_results": state.get("round_results", []),
         "message": state.get("message"),
+        "current_hand_value": state.get("current_hand_value", 1),
     }
 
 
@@ -83,6 +85,7 @@ def snapshot_from_gamecore() -> Dict:
         "round_results": [],
         "player_hand": player_hand,
         "played": {"player": None, "opponent": None},
+        "current_hand_value": 1,  # Default hand value at start
     }
     return state
 
@@ -103,6 +106,10 @@ def snapshot_from_controller(controller) -> Dict:
             scores = {"player": getattr(core, "pontos_jogador", 0), "opponent": getattr(core, "pontos_oponente", 0)}
             snap = snapshot_from_gamecore()
             snap["scores"] = scores
+            # Try to get current_hand_value from controller's truco logic
+            truco = getattr(controller, "truco", None)
+            if truco:
+                snap["current_hand_value"] = getattr(truco, "current_hand_value", 1)
 
         # Include starter flags from controller.core when available so UI can
         # decide who should play next without reaching into controller internals.

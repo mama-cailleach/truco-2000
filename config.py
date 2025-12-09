@@ -42,9 +42,9 @@ class GameConfig:
     TRUCO_NAMES = {
         1: "Normal",
         3: "Truco", 
-        6: "Retruco",
-        9: "Vale 9",
-        12: "Vale 12"
+        6: "Seis",
+        9: "Nove",
+        12: "Doze"
     }
     
     # Card values (for sorting and comparison)

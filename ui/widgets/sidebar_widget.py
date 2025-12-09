@@ -2,11 +2,13 @@ from textual.widgets import Static
 from typing import Dict, List
 
 from config import GameConfig
+from ui.ascii_art import ASCIIArt
 
 class SidebarWidget(Static):
     """Sidebar showing scores, vira and manilha, and round history."""
     def __init__(self, snapshot: Dict = None, **kwargs):
         snapshot = snapshot or {}
+        self.cards_db = ASCIIArt().fill_cards_database()
         content = self.render_snapshot(snapshot)
         super().__init__(content, **kwargs)
 
@@ -21,19 +23,29 @@ class SidebarWidget(Static):
             lines.append("")
             lines.append(f"VENCEDOR: {winner}")
         lines.append("")
-        lines.append(f"VIRA: {snapshot.get('carta_vira', '-')}")
-        lines.append(f"MANILHA: {snapshot.get('manilha', '-')}")
+        vira = snapshot.get('carta_vira', '-')
+        lines.append("VIRA:")
+        vira_art = self.cards_db.get(vira)
+        if vira_art:
+            lines.extend(vira_art.split("\n"))
+        else:
+            lines.append(str(vira))
+        lines.append("")
+        
+        # Display all four manilhas in strength order (♣ ♥ ♠ ♦)
+        manilha_rank = snapshot.get('manilha', '-')
+        if manilha_rank != '-':
+            manilhas = f"{manilha_rank}♣ {manilha_rank}♥ {manilha_rank}♠ {manilha_rank}♦"
+            lines.append(f"MANILHAS: {manilhas}")
+        else:
+            lines.append("MANILHAS: -")
+        lines.append("")
+        lines.append(f"Mão Valendo: {snapshot.get('current_hand_value', '-')}")
         lines.append("")
         rounds = snapshot.get('round_results', [])
         lines.append("RESULTADOS:")
         for i, r in enumerate(rounds):
             lines.append(f"  Rodada {i+1}: {r}")
-        # Optional transient message to show in the sidebar
-        lines.append("")
-        msg = snapshot.get("message")
-        if msg:
-            lines.append(f"! {msg}")
-            lines.append("")
         return "\n".join(lines)
 
     def update_snapshot(self, snapshot: Dict):

@@ -2,6 +2,7 @@ from typing import Dict, Optional, List
 from game_core import GameCore
 from config import GameConfig
 from truco_logic import TrucoLogic
+from ai.opponents import BaseAIOpponent, BaselineOpponent, AIOpponentContext
 
 class UIController:
     """Lightweight controller used by the Textual UI for prototyping interactions.
@@ -9,10 +10,11 @@ class UIController:
     This intentionally keeps logic simple and does not implement full Truco
     negotiation. It uses GameCore for card dealing, scoring, and winner determination.
     """
-    def __init__(self):
+    def __init__(self, opponent_ai: Optional[BaseAIOpponent] = None):
         self.core = GameCore()
         self.config = GameConfig
         self.truco = TrucoLogic()
+        self.opponent_ai: BaseAIOpponent = opponent_ai or BaselineOpponent()
         self.message: Optional[str] = None
         self.reset_hand()
 
@@ -44,6 +46,16 @@ class UIController:
             self.core.player_starts_round = getattr(self.core, "player_starts_hand", True)
         except Exception:
             pass
+
+        # Notify opponent AI of new hand
+        try:
+            self.opponent_ai.on_new_hand(self._build_ai_context())
+        except Exception:
+            pass
+
+    def set_opponent_ai(self, opponent_ai: Optional[BaseAIOpponent]):
+        """Swap the active opponent AI (useful for debugging/testing different profiles)."""
+        self.opponent_ai = opponent_ai or BaselineOpponent()
 
     def reset_match(self):
         """Reset match-level scores and start a fresh hand.
@@ -80,6 +92,7 @@ class UIController:
             "pending_truco_name": pending_truco_name,
             "hand_ended": getattr(self, "hand_ended", False),
             "can_player_raise_truco": self.truco.can_raise_truco("Jogador"),
+            "current_hand_value": self.truco.current_hand_value,
         }
 
     # --- Split play flow into explicit steps so UI can animate/delay ---
@@ -97,7 +110,16 @@ class UIController:
         """Choose an opponent card and set it as played. Returns snapshot."""
         opp_card = None
         if self.opponent_hand:
-            opp_card = self.opponent_hand.pop(0)
+            try:
+                context = self._build_ai_context()
+                idx = self.opponent_ai.choose_card(context)
+                if idx is None:
+                    idx = 0
+                if idx < 0 or idx >= len(self.opponent_hand):
+                    idx = 0
+                opp_card = self.opponent_hand.pop(idx)
+            except Exception:
+                opp_card = self.opponent_hand.pop(0)
             self.played["opponent"] = opp_card
         return self.get_snapshot()
 
@@ -172,12 +194,24 @@ class UIController:
 
             # mark hand complete; played cards remain until UI resets for next hand
             self.hand_ended = True
+            # Clear table state so future snapshots don't show stale cards
+            try:
+                self.played["player"] = None
+                self.played["opponent"] = None
+            except Exception:
+                pass
             # increment current_round for completeness
             self.current_round += 1
             return self.get_snapshot()
 
         # Hand continues; advance round counter
         self.current_round += 1
+        # Clear table state for the next round so snapshots don't show old cards
+        try:
+            self.played["player"] = None
+            self.played["opponent"] = None
+        except Exception:
+            pass
         return self.get_snapshot()
 
     def play_card(self, index: int) -> Dict:
@@ -223,8 +257,11 @@ class UIController:
             self.message = "Já no valor máximo de truco"
             return self.get_snapshot()
 
-        # Opponent decides reactively
-        response = self.truco.get_opponent_truco_response(next_value)
+        # Opponent decides reactively via AI hook
+        try:
+            response = self.opponent_ai.decide_truco_response(next_value, self.truco, self._build_ai_context())
+        except Exception:
+            response = self.truco.get_opponent_truco_response(next_value)
         if response == 'accept':
             # Opponent accepted player's truco
             self.truco.update_truco_state(next_value, 'Jogador')
@@ -281,6 +318,23 @@ class UIController:
         # Let the UI show an end-of-hand banner; UI will call adapter.reset_hand()
         self.hand_ended = True
         return self.get_snapshot()
+
+    def _build_ai_context(self) -> AIOpponentContext:
+        """Build a sanitized context snapshot for AI decision making."""
+        return AIOpponentContext(
+            opponent_hand=self.opponent_hand.copy(),
+            player_hand=self.player_hand.copy(),
+            played=self.played.copy(),
+            manilha=self.manilha,
+            carta_vira=self.carta_vira,
+            scores={"player": self.core.pontos_jogador, "opponent": self.core.pontos_oponente},
+            current_hand_value=self.truco.current_hand_value,
+            last_accepted_value=self.truco.last_accepted_value,
+            pending_truco=self.pending_truco.copy() if isinstance(self.pending_truco, dict) else self.pending_truco,
+            round_results=self.round_results.copy(),
+            player_starts_round=getattr(self.core, "player_starts_round", True),
+            player_starts_hand=getattr(self.core, "player_starts_hand", True),
+        )
 
     def respond_to_truco(self, action: str) -> Dict:
         """Handle a player response to a pending opponent truco.

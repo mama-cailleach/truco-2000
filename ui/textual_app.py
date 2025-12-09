@@ -16,10 +16,11 @@ from ui import adapter
 # Import our widgets
 from ui.widgets.battle_zone_widget import BattleZoneWidget
 from ui.widgets.hand_widget import HandWidget
-from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.prompt_widget import PromptWidget
+from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.truco_response_widget import TrucoResponseWidget
 from ui.widgets.win_banner_widget import WinBannerWidget
+from ui.widgets.game_banner import GameBanner
 from ui.ui_controller import UIController
 from ui.ascii_art import ASCIIArt
 
@@ -80,9 +81,8 @@ class TrucoModal(Screen):
             sidebar = self.app.query_one(SidebarWidget)
             hand = self.app.query_one(HandWidget)
             battle = self.app.query_one(BattleZoneWidget)
-            prompt = self.app.query_one(PromptWidget)
         except Exception:
-            sidebar = hand = battle = prompt = None
+            sidebar = hand = battle = None
 
         if sidebar:
             sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
@@ -95,18 +95,7 @@ class TrucoModal(Screen):
             player_card, opponent_card = adapter.battle_from_state(snapshot)
             battle.update_zone(player_card, opponent_card)
 
-        # Reset prompt buttons to defaults
-        if prompt:
-            try:
-                disabled = self.get_disabled_button_ids(snapshot)
-                prompt.update_actions([
-                    ("play", "Jogar"),
-                    ("truco", "Truco"),
-                    ("run", "Fugir"),
-                    ("restart", "Reiniciar"),
-                ], disabled_ids=disabled)
-            except Exception:
-                pass
+        # Action buttons live in HandWidget row; no reset needed here
 
         # If this response ended the match, refresh snapshot and navigate to main menu
         try:
@@ -195,16 +184,23 @@ class TrucoTextualApp(App):
         background: #0D0208;
         border: round #00FF41;
     }
-    /* Battle zone (top) and Hand area (bottom) as separate boxed panels */
+    /* Opponent dialog (top), battle (middle), hand (bottom) panels */
+    .opponent-area {
+        height: 20%;
+        border: round #003B00;
+        background: #0D0208;
+        padding: 0 1;
+        margin-bottom: 1;
+    }
     .battle-area {
-        height: 40%;
+        height: 25%;
         border: round #003B00; 
         background: #0D0208;   
-        padding: 1 1;
+        padding: 0 1;
         margin-bottom: 1;
     }
     .hand-area {
-        height: 60%;
+        height: 50%;
         border: round #003B00;
         background: #0D0208; 
         padding: 1 1;
@@ -214,10 +210,6 @@ class TrucoTextualApp(App):
         width: 100%;
     }
     #card_display {
-        height: auto;
-        width: 100%;
-    }
-    #action_buttons {
         height: auto;
         width: 100%;
     }
@@ -232,18 +224,17 @@ class TrucoTextualApp(App):
     margin: 0 2;  # Add 1 space on left and right of each button
 
     }
+    PromptWidget {
+        height: auto;
+        width: 100%;
+        margin-top: 1;
+    }
     .sidebar {
         width: 36;
         border: round #00FF41;
         background: #0D0208; 
         padding: 1 1;
     }
-    PromptWidget {
-        height: auto;
-        width: 100%;
-        margin-top: 1;
-    }
-    
     /* Base GameBanner styles */
     GameBanner {
         layer: overlay;
@@ -276,10 +267,10 @@ class TrucoTextualApp(App):
     /* Specific banner overrides */
     TrucoResponseWidget {
         width: 60;
-        height: 10;
-        border: round $error;
-        background: $surface;
-        offset: 0% 50%;
+        height: auto;
+        border: round #00FF41;
+        background: #0D0208;
+        offset: 0% 0%;
     }
     
     WinBannerWidget {
@@ -290,11 +281,11 @@ class TrucoTextualApp(App):
     
     #win_banner_buttons Button {
         min-width: 14;
-        margin: 0 2;
+        margin: 0 0;
     }
     
     #truco_response_message {
-        margin-bottom: 1;
+        margin-bottom: 0;
     }
     
     /* Main Menu styles */
@@ -350,6 +341,9 @@ class TrucoTextualApp(App):
         with Horizontal():
             # Left: main area split vertically into Battle (top) and Hand (bottom)
             with Vertical(classes="main-area"):
+                with Vertical(classes="opponent-area"):
+                    # Temporary opponent dialog placeholder
+                    yield Static("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus rutrum.")
                 with Vertical(classes="battle-area"):
                     yield BattleZoneWidget()
                 with Vertical(classes="hand-area"):
@@ -386,14 +380,14 @@ class TrucoTextualApp(App):
         self.game_over_active = False
         self.remove_win_banner()
         try:
-            prompt = self.query_one(PromptWidget)
-            prompt.truco_btn.disabled = False
-            prompt.run_btn.disabled = False
+            hand_widget = self.query_one(HandWidget)
+            hand_widget.set_card_buttons_disabled(False)
         except Exception:
             pass
         try:
-            hand_widget = self.query_one(HandWidget)
-            hand_widget.set_card_buttons_disabled(False)
+            prompt = self.query_one(PromptWidget)
+            prompt.truco_btn.disabled = False
+            prompt.run_btn.disabled = False
         except Exception:
             pass
         try:
@@ -419,11 +413,7 @@ class TrucoTextualApp(App):
         # Update prompt button states (Truco/Run)
         try:
             prompt = self.query_one(PromptWidget)
-            # Disable truco if player cannot raise
-            if not snapshot.get("can_player_raise_truco", True):
-                prompt.truco_btn.disabled = True
-            else:
-                prompt.truco_btn.disabled = False
+            prompt.truco_btn.disabled = not snapshot.get("can_player_raise_truco", True)
         except Exception:
             pass
 
@@ -509,6 +499,36 @@ class TrucoTextualApp(App):
         try:
             banner = self.query_one(WinBannerWidget)
             banner.remove()
+        except Exception:
+            pass
+
+    async def show_temp_banner(self, text: str, duration: float = 2.0) -> None:
+        """Show a temporary banner over the battle area for a short duration."""
+        if not text or self.game_over_active:
+            return
+        try:
+            battle_area = self.query_one(".battle-area")
+        except Exception:
+            return
+
+        # Remove any existing temp banner first
+        try:
+            existing = self.query_one("#temp_banner_message")
+            existing.parent.remove()
+        except Exception:
+            pass
+
+        try:
+            banner = GameBanner(message=text, banner_id="temp_banner", message_classes="temp_banner_message")
+            await battle_area.mount(banner)
+            try:
+                await asyncio.sleep(duration)
+            except Exception:
+                pass
+            try:
+                banner.remove()
+            except Exception:
+                pass
         except Exception:
             pass
     
@@ -736,6 +756,14 @@ class TrucoTextualApp(App):
             player_card, opponent_card = adapter.battle_from_state(snapshot)
             battle.update_zone(player_card, opponent_card, status_text=f"{snapshot.get('message', '')}")
 
+            # Show a short banner for the outcome of the turn/round
+            try:
+                msg = snapshot.get("message")
+                if msg:
+                    await self.show_temp_banner(msg)
+            except Exception:
+                pass
+
             # If the match just ended, show banner and stop further flow
             try:
                 game_over = await self.handle_game_over(snapshot)
@@ -804,11 +832,7 @@ class TrucoTextualApp(App):
                     # Update prompt buttons with new disabled state
                     try:
                         prompt = self.query_one(PromptWidget)
-                        # Update truco button state
-                        if not snapshot.get("can_player_raise_truco", True):
-                            prompt.truco_btn.disabled = True
-                        else:
-                            prompt.truco_btn.disabled = False
+                        prompt.truco_btn.disabled = not snapshot.get("can_player_raise_truco", True)
                     except Exception:
                         pass
                     
@@ -847,7 +871,7 @@ class TrucoTextualApp(App):
                 pass
 
     async def on_button_pressed(self, event) -> None:
-        # Handle button presses from HandWidget (card buttons) and PromptWidget (truco/run)
+        # Handle button presses from HandWidget (card buttons + Truco/Fugir)
         btn_id = getattr(event.button, "id", None)
         if not btn_id:
             return
@@ -911,11 +935,10 @@ class TrucoTextualApp(App):
                 if snapshot.get("pending_truco"):
                     try:
                         pending_name = snapshot.get("pending_truco_name", "Truco")
-                        # Show truco response widget inside hand-area container
-                        hand_area = self.query_one(".hand-area")
+                        # Show truco response widget over the battle area
+                        battle_area = self.query_one(".battle-area")
                         truco_response = TrucoResponseWidget(pending_name)
-                        # Mount it inside hand-area as overlay
-                        await hand_area.mount(truco_response)
+                        await battle_area.mount(truco_response)
                         # Disable card buttons during truco negotiation
                         try:
                             hand.set_card_buttons_disabled(True)
@@ -934,6 +957,13 @@ class TrucoTextualApp(App):
                     game_over = await self.handle_game_over(snapshot)
                     if game_over:
                         return
+                    # Show short banner for truco outcome if applicable
+                    try:
+                        msg = snapshot.get("message")
+                        if msg and not snapshot.get("pending_truco"):
+                            await self.show_temp_banner(msg)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
                 # If call_truco resulted in the hand ending (but not game-over), auto-deal next hand
@@ -959,13 +989,7 @@ class TrucoTextualApp(App):
                         
                         # Update prompt buttons with new disabled state
                         try:
-                            disabled = self.get_disabled_button_ids(snapshot)
-                            prompt.update_actions([
-                                ("play", "Jogar"),
-                                ("truco", "Truco"),
-                                ("run", "Fugir"),
-                                ("restart", "Reiniciar"),
-                            ], disabled_ids=disabled)
+                            prompt.truco_btn.disabled = not snapshot.get("can_player_raise_truco", True)
                         except Exception:
                             pass
                         
@@ -1041,9 +1065,9 @@ class TrucoTextualApp(App):
                     except Exception:
                         # Widget doesn't exist yet, create it
                         try:
-                            hand_area = self.query_one(".hand-area")
+                            battle_area = self.query_one(".battle-area")
                             truco_response = TrucoResponseWidget(pending_name)
-                            await hand_area.mount(truco_response)
+                            await battle_area.mount(truco_response)
                         except Exception:
                             pass
                 else:
@@ -1062,8 +1086,7 @@ class TrucoTextualApp(App):
                     # Re-enable truco button
                     try:
                         prompt = self.query_one(PromptWidget)
-                        if snapshot.get("can_player_raise_truco", True):
-                            prompt.truco_btn.disabled = False
+                        prompt.truco_btn.disabled = not snapshot.get("can_player_raise_truco", True)
                     except Exception:
                         pass
             except Exception:
@@ -1076,6 +1099,12 @@ class TrucoTextualApp(App):
                 game_over = await self.handle_game_over(snapshot)
                 if game_over:
                     return
+                try:
+                    msg = snapshot.get("message")
+                    if msg and not snapshot.get("pending_truco"):
+                        await self.show_temp_banner(msg)
+                except Exception:
+                    pass
             except Exception:
                 pass
             # If inline response ended hand (but not game over), auto-deal next hand
@@ -1162,6 +1191,12 @@ class TrucoTextualApp(App):
                     game_over = await self.handle_game_over(snapshot)
                     if game_over:
                         return
+                    try:
+                        msg = snapshot.get("message")
+                        if msg:
+                            await self.show_temp_banner(msg)
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
@@ -1187,6 +1222,13 @@ class TrucoTextualApp(App):
                     try:
                         hand = self.query_one(HandWidget)
                         hand.update_hand(self.current_hand_payload, None)
+                    except Exception:
+                        pass
+                    # Re-enable prompt buttons for the new hand
+                    try:
+                        prompt = self.query_one(PromptWidget)
+                        prompt.run_btn.disabled = False
+                        prompt.truco_btn.disabled = not snapshot.get("can_player_raise_truco", True)
                     except Exception:
                         pass
                     try:

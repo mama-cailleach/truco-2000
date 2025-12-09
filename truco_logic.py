@@ -28,7 +28,7 @@ class TrucoLogic:
         self.current_hand_value = 1  # Current value of the hand (1, 3, 6, 9, 12)
         self.last_accepted_value = 1  # Last value that was explicitly accepted (for defensive tracking)
         self.last_raiser = None  # Who made the last raise ("Jogador" or "Oponente")
-        self.truco_names = {1: "Normal", 3: "Truco", 6: "Retruco", 9: "Vale 9", 12: "Vale 12"}
+        self.truco_names = {1: "Normal", 3: "Truco", 6: "Seis", 9: "Nove", 12: "Doze"}
     
     def reset_truco_state(self):
         """
@@ -100,7 +100,7 @@ class TrucoLogic:
         Returns:
             str: Name of the truco level
         """
-        return self.truco_names.get(value, f"Vale {value}")
+        return self.truco_names.get(value, f"{value}")
     
     def handle_truco_sequence(self, initiator, current_value=3, input_handler=None, ui_handler=None):
         """
