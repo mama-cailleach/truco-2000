@@ -73,3 +73,13 @@ class BaselineOpponent(BaseAIOpponent):
 
     # Inherit BaseAIOpponent defaults
     pass
+
+
+# Lazy import to avoid circular dependency
+def _get_default_opponent():
+    """Import and instantiate the default opponent."""
+    from ai.init_ram import InitRam
+    return InitRam()
+
+
+DEFAULT_OPPONENT = None  # Lazily initialized on first access

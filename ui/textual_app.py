@@ -21,6 +21,7 @@ from ui.widgets.sidebar_widget import SidebarWidget
 from ui.widgets.truco_response_widget import TrucoResponseWidget
 from ui.widgets.win_banner_widget import WinBannerWidget
 from ui.widgets.game_banner import GameBanner
+from ui.widgets.welcome_screen import WelcomeSizingWidget
 from ui.ui_controller import UIController
 from ui.ascii_art import ASCIIArt
 
@@ -331,6 +332,25 @@ class TrucoTextualApp(App):
         width: 100%;
         margin: 1 2;
     }
+    
+    /* Welcome/Sizing Screen */
+    #welcome_container {
+        width: 100%;
+        height: 100%;
+        align: center middle;
+        background: #0D0208;
+    }
+    
+    #sizing_widget {
+        width: auto;
+        height: auto;
+        color: #00FF41;
+    }
+    
+    #sizing_box {
+        color: #00FF41;
+        text-align: left;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -365,10 +385,10 @@ class TrucoTextualApp(App):
     game_over_active: bool = False
 
     async def on_mount(self) -> None:
-        # Show the main menu on start
+        # Show the welcome/sizing screen on start
         # instantiate controller used by UI for interactive play
         self.controller = UIController()
-        await self.push_screen(MainMenu())
+        await self.push_screen(WelcomeScreen())
 
     async def start_game(self) -> None:
         """Reset controller and populate UI with a fresh game snapshot.
@@ -1334,6 +1354,28 @@ class TrucoTextualApp(App):
                 # immediate play on digit press
                 await self.play_card(idx)
 
+class WelcomeScreen(Screen):
+    """Initial welcome screen showing terminal sizing guide."""
+    
+    def compose(self) -> ComposeResult:
+        with Vertical(id="welcome_container"):
+            yield WelcomeSizingWidget(id="sizing_widget")
+    
+    async def on_key(self, event) -> None:
+        # Any key press proceeds to main menu
+        try:
+            key = event.key
+        except Exception:
+            return
+        if key:
+            try:
+                event.stop()  # Stop event propagation to prevent MainMenu from receiving it
+                self.app.pop_screen()
+                await self.app.push_screen(MainMenu())
+            except Exception:
+                pass
+
+
 class MainMenu(Screen):
     """Main menu screen with ASCII art banner and game options."""
     
@@ -1379,22 +1421,12 @@ class MainMenu(Screen):
             self.app.exit()
 
     async def on_key(self, event) -> None:
-        # Allow Enter to start and 'q' to quit
+        # Allow 'q' to quit
         try:
             key = event.key
         except Exception:
             return
-        if key == "enter":
-            try:
-                adapter.reset_match(self.app.controller)
-            except Exception:
-                pass
-            await self.app.start_game()
-            try:
-                self.app.pop_screen()
-            except Exception:
-                pass
-        elif key == "q":
+        if key == "q":
             self.app.exit()
 
 

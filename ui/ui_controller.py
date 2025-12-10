@@ -2,7 +2,7 @@ from typing import Dict, Optional, List
 from game_core import GameCore
 from config import GameConfig
 from truco_logic import TrucoLogic
-from ai.opponents import BaseAIOpponent, BaselineOpponent, AIOpponentContext
+from ai.opponents import BaseAIOpponent, BaselineOpponent, AIOpponentContext, _get_default_opponent
 
 class UIController:
     """Lightweight controller used by the Textual UI for prototyping interactions.
@@ -14,7 +14,7 @@ class UIController:
         self.core = GameCore()
         self.config = GameConfig
         self.truco = TrucoLogic()
-        self.opponent_ai: BaseAIOpponent = opponent_ai or BaselineOpponent()
+        self.opponent_ai: BaseAIOpponent = opponent_ai or _get_default_opponent()
         self.message: Optional[str] = None
         self.reset_hand()
 
