@@ -696,6 +696,25 @@ class TrucoTextualApp(App):
                 except Exception:
                     snapshot = adapter.snapshot_from_controller(self.controller)
 
+                # If opponent initiated truco, show response overlay and stop turn flow
+                if snapshot.get("pending_truco"):
+                    try:
+                        pending_name = snapshot.get("pending_truco_name", "Truco")
+                        battle_area = self.query_one(".battle-area")
+                        truco_response = TrucoResponseWidget(pending_name)
+                        await battle_area.mount(truco_response)
+                        # Disable interactions during negotiation
+                        if hand:
+                            hand.set_card_buttons_disabled(True)
+                        try:
+                            prompt = self.query_one(PromptWidget)
+                            prompt.truco_btn.disabled = True
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    return
+
                 if sidebar:
                     sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
                 player_card, opponent_card = adapter.battle_from_state(snapshot)
@@ -726,6 +745,25 @@ class TrucoTextualApp(App):
                         snapshot = adapter.snapshot_from_controller(self.controller)
                 except Exception:
                     snapshot = adapter.snapshot_from_controller(self.controller)
+
+                # If opponent initiated truco, show response overlay and stop flow
+                if snapshot.get("pending_truco"):
+                    try:
+                        pending_name = snapshot.get("pending_truco_name", "Truco")
+                        battle_area = self.query_one(".battle-area")
+                        truco_response = TrucoResponseWidget(pending_name)
+                        await battle_area.mount(truco_response)
+                        # Disable interactions during negotiation
+                        if hand:
+                            hand.set_card_buttons_disabled(True)
+                        try:
+                            prompt = self.query_one(PromptWidget)
+                            prompt.truco_btn.disabled = True
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    return
 
                 # Update UI to show opponent only
                 self.current_hand_payload = adapter.hand_from_state(snapshot)
@@ -1043,6 +1081,7 @@ class TrucoTextualApp(App):
 
         elif btn_id in ("truco_accept", "truco_reraise", "truco_run"):
             # Handle truco response buttons from TrucoResponseWidget
+            accepted_truco = False
             try:
                 action_map = {
                     "truco_accept": "accept",
@@ -1050,6 +1089,7 @@ class TrucoTextualApp(App):
                     "truco_reraise": "reraise"
                 }
                 action = action_map.get(btn_id)
+                accepted_truco = (action == "accept")
                 if action:
                     snapshot = adapter.respond_truco(self.controller, action)
                 else:
@@ -1074,6 +1114,61 @@ class TrucoTextualApp(App):
             if battle:
                 player_card, opponent_card = adapter.battle_from_state(snapshot)
                 battle.update_zone(player_card, opponent_card)
+
+            # If player accepted opponent's truco and opponent hasn't played yet, have them play now
+            try:
+                if accepted_truco and not snapshot.get("pending_truco"):
+                    opponent_played = snapshot.get("played", {}).get("opponent")
+                    player_played = snapshot.get("played", {}).get("player")
+
+                    if opponent_played is None:
+                        try:
+                            await asyncio.sleep(OPPONENT_THINK_DELAY)
+                        except Exception:
+                            pass
+                        try:
+                            snapshot = adapter.opponent_play(self.controller)
+                        except Exception:
+                            snapshot = adapter.snapshot_from_controller(self.controller)
+                        if sidebar:
+                            sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                        if hand:
+                            self.current_hand_payload = adapter.hand_from_state(snapshot)
+                            hand.update_hand(self.current_hand_payload, self.selected_index)
+                        if battle:
+                            player_card, opponent_card = adapter.battle_from_state(snapshot)
+                            battle.update_zone(player_card, opponent_card, status_text="Oponente jogou")
+
+                    # If both cards are down, resolve the round immediately
+                    player_played = snapshot.get("played", {}).get("player")
+                    opponent_played = snapshot.get("played", {}).get("opponent")
+                    if player_played and opponent_played:
+                        try:
+                            await asyncio.sleep(0.8)
+                        except Exception:
+                            pass
+                        try:
+                            snapshot = adapter.resolve_round(self.controller)
+                        except Exception:
+                            snapshot = adapter.snapshot_from_controller(self.controller)
+                        if sidebar:
+                            sidebar.update_snapshot(adapter.sidebar_from_state(snapshot))
+                        if hand:
+                            self.current_hand_codes = snapshot.get("player_hand", [])
+                            self.current_hand_payload = adapter.hand_from_state(snapshot)
+                            self.selected_index = None
+                            hand.update_hand(self.current_hand_payload, self.selected_index)
+                        if battle:
+                            player_card, opponent_card = adapter.battle_from_state(snapshot)
+                            battle.update_zone(player_card, opponent_card, status_text=f"{snapshot.get('message', '')}")
+                        try:
+                            msg = snapshot.get("message")
+                            if msg:
+                                await self.show_temp_banner(msg)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
             # If still pending (opponent re-raised), update truco response widget
             try:

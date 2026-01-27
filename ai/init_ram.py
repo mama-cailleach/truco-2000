@@ -39,6 +39,27 @@ class InitRam:
         self.hand_strength = self._evaluate_hand_strength(context.opponent_hand, context.manilha)
         self.bluff_committed = False
     
+    def should_call_truco(self, context: AIOpponentContext) -> bool:
+        """INIT-RAM is aggressive and will bluff truco calls frequently.
+        
+        Strategy:
+        - High hand: 40% chance to call truco (back up threat with strength)
+        - Medium hand: 30% chance to call truco (aggressive bluffing)
+        - Low hand: 10% chance to call truco (occasional wild bluff)
+        - Only call if current value is 1 (no truco active yet)
+        """
+        # Only call truco if no truco is active
+        if context.current_hand_value != 1:
+            return False
+        
+        # Aggressive Aries behavior: frequent truco calls
+        if self.hand_strength == "high":
+            return random.random() < 0.99
+        elif self.hand_strength == "medium":
+            return random.random() < 0.99
+        else:  # low
+            return random.random() < 0.99
+    
     def _evaluate_hand_strength(self, hand: list[str], manilha: str) -> str:
         """Classify hand as 'high', 'medium', or 'low' based on card strength.
         

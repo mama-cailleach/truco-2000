@@ -42,6 +42,14 @@ class BaseAIOpponent:
         """Hook called at the start of each hand. Override to reset per-hand state."""
         return
 
+    def should_call_truco(self, context: AIOpponentContext) -> bool:
+        """Decide whether to call truco before playing a card.
+
+        Called before opponent plays each card. Return True to initiate truco.
+        Default: never call truco (preserves legacy behavior).
+        """
+        return False
+
     def choose_card(self, context: AIOpponentContext) -> int:
         """Return the index of the card to play from opponent_hand (0-based).
 

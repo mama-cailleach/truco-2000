@@ -107,7 +107,31 @@ class UIController:
         return self.get_snapshot()
 
     def opponent_play(self) -> Dict:
-        """Choose an opponent card and set it as played. Returns snapshot."""
+        """Choose an opponent card and set it as played. Returns snapshot.
+        
+        Before playing, the AI may decide to call truco if no truco is active.
+        """
+        # Check if opponent wants to call truco before playing
+        try:
+            context = self._build_ai_context()
+            if self.opponent_ai.should_call_truco(context):
+                # Opponent calls truco; set pending_truco for player to respond
+                next_value = self.truco.get_next_truco_value()
+                if next_value:
+                    self.truco.last_raiser = "Oponente"
+                    self.truco.current_hand_value = next_value
+                    self.pending_truco = {
+                        "value": next_value,
+                        "raiser": "Oponente",
+                        "last_accepted": self.truco.last_accepted_value
+                    }
+                    self.message = f"Oponente pediu {self.truco.truco_names.get(next_value, 'Truco')}!"
+                    # Don't play card yet; return snapshot with pending truco
+                    return self.get_snapshot()
+        except Exception:
+            pass
+        
+        # Normal card play
         opp_card = None
         if self.opponent_hand:
             try:
