@@ -21,21 +21,24 @@ class GameConfig:
     """
     
     # Pygame Window Settings
-    WINDOW_WIDTH = 800
-    WINDOW_HEIGHT = 600
+    WINDOW_WIDTH = 1024
+    WINDOW_HEIGHT = 768
     WINDOW_TITLE = "Truco 2000"
     FPS = 60
     
     # Pygame Colors (RGB)
     COLOR_BACKGROUND = (13, 2, 8)  # Dark purple
+    COLOR_BACKGROUND_DARK = (8, 1, 5)  # Even darker purple
     COLOR_PRIMARY = (0, 255, 65)  # Bright green
     COLOR_SECONDARY = (0, 143, 17)  # Dark green
     COLOR_ACCENT = (0, 59, 0)  # Very dark green
     COLOR_TEXT = (0, 255, 65)  # Bright green
+    COLOR_TEXT_MUTED = (0, 180, 45)  # Dimmer green
     COLOR_TEXT_SECONDARY = (200, 200, 200)  # Light gray
     COLOR_BUTTON_HOVER = (0, 200, 50)  # Dim green
     COLOR_BUTTON_PRESSED = (0, 150, 30)  # Darker green
     COLOR_ERROR = (255, 50, 50)  # Red
+    COLOR_DANGER = (255, 80, 80)  # Light red
     COLOR_SUCCESS = (50, 255, 50)  # Bright green
     
     # Font Settings
@@ -71,6 +74,7 @@ class GameConfig:
         6: "Seis",
         9: "Nove",
         12: "Doze"
+    }
     
     # Internationalization (i18n)
     DEFAULT_LANGUAGE = "pt_br"

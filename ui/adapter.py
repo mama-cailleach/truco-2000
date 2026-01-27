@@ -1,8 +1,11 @@
-from typing import Dict, List, Optional, Tuple
+"""
+Adapter Module for Pygame UI.
 
-# Adapter functions that translate a game-state dict into widget payloads.
-# For now we provide a demo snapshot generator and pure functions that
-# return structures consumable by the widgets in ui/widgets/.
+Translates game-state dictionaries into structured snapshots for rendering.
+Provides functions to bridge GameController/GameCore state with the UI layer.
+"""
+
+from typing import Dict, List, Optional, Tuple
 
 def render_card(code: str) -> List[str]:
     """Return a small ASCII block for a card code like 'A♠' or '10♥'."""
@@ -91,50 +94,109 @@ def snapshot_from_gamecore() -> Dict:
 
 
 def snapshot_from_controller(controller) -> Dict:
-    """Attempt to build a snapshot from a GameController instance.
-
-    If controller doesn't expose the current hand state (common), fall back to
-    creating a fresh GameCore snapshot so the UI can still show something.
+    """
+    Build a comprehensive snapshot from a GameController instance for Pygame rendering.
+    
+    Returns a structured dictionary with all data needed for the renderer:
+    - opponent_name: Name of the opponent
+    - opponent_card_count: Number of cards in opponent's hand
+    - hand: List of card codes in player's hand
+    - battle: Dict with player_card and opponent_card (cards currently played)
+    - current_round: Round number (1-3)
+    - sidebar: Dict with player_score, opponent_score, truco_value, truco_name, manilha
+    - player_starts_round: Whether player starts this round
+    - player_starts_hand: Whether player started this hand
+    - pending_truco: Any pending truco negotiation state
     """
     try:
-        # Prefer controller.get_snapshot() when available so we reflect live state
+        # Try to get snapshot from controller
         try:
             snap = controller.get_snapshot()
         except Exception:
-            # fall back to building a snapshot from a fresh GameCore
+            # Fall back to building from GameCore
             core = getattr(controller, "core", None)
-            scores = {"player": getattr(core, "pontos_jogador", 0), "opponent": getattr(core, "pontos_oponente", 0)}
+            scores = {
+                "player": getattr(core, "pontos_jogador", 0),
+                "opponent": getattr(core, "pontos_oponente", 0)
+            }
             snap = snapshot_from_gamecore()
             snap["scores"] = scores
-            # Try to get current_hand_value from controller's truco logic
+            
+            # Get truco value from truco logic
             truco = getattr(controller, "truco", None)
             if truco:
                 snap["current_hand_value"] = getattr(truco, "current_hand_value", 1)
 
-        # Include starter flags from controller.core when available so UI can
-        # decide who should play next without reaching into controller internals.
-        core = getattr(controller, "core", None)
-        try:
-            snap["player_starts_round"] = getattr(core, "player_starts_round", True)
-            snap["player_starts_hand"] = getattr(core, "player_starts_hand", True)
-        except Exception:
-            snap["player_starts_round"] = snap.get("player_starts_round", True)
-            snap["player_starts_hand"] = snap.get("player_starts_hand", True)
+        # Build enhanced snapshot for Pygame renderer
+        enhanced_snap = {
+            # Opponent info
+            "opponent_name": snap.get("opponent_name", "INIT-RAM"),
+            "opponent_card_count": len(snap.get("opponent_hand", [])),
+            
+            # Player hand
+            "hand": snap.get("player_hand", []),
+            
+            # Battle zone (played cards)
+            "battle": {
+                "player_card": snap.get("played", {}).get("player"),
+                "opponent_card": snap.get("played", {}).get("opponent")
+            },
+            
+            # Round info
+            "current_round": len(snap.get("round_results", [])) + 1,
+            
+            # Sidebar data
+            "sidebar": {
+                "player_score": snap.get("scores", {}).get("player", 0),
+                "opponent_score": snap.get("scores", {}).get("opponent", 0),
+                "truco_value": snap.get("current_hand_value", 1),
+                "truco_name": _get_truco_name(snap.get("current_hand_value", 1), controller),
+                "manilha": snap.get("manilha", "?")
+            },
+            
+            # Game flow flags
+            "player_starts_round": snap.get("player_starts_round", True),
+            "player_starts_hand": snap.get("player_starts_hand", True),
+            "pending_truco": snap.get("pending_truco"),
+            "round_results": snap.get("round_results", [])
+        }
 
-        # If there's a pending truco, include a human-friendly name for display
-        try:
-            pending = snap.get("pending_truco")
-            if pending and hasattr(controller, "truco"):
-                try:
-                    snap["pending_truco_name"] = controller.truco.get_truco_name(pending.get("value"))
-                except Exception:
-                    snap["pending_truco_name"] = None
-        except Exception:
-            pass
-
-        return snap
+        return enhanced_snap
+        
     except Exception:
-        return demo_game_state()
+        # Ultimate fallback
+        return {
+            "opponent_name": "Oponente",
+            "opponent_card_count": 0,
+            "hand": [],
+            "battle": {"player_card": None, "opponent_card": None},
+            "current_round": 1,
+            "sidebar": {
+                "player_score": 0,
+                "opponent_score": 0,
+                "truco_value": 1,
+                "truco_name": "Normal",
+                "manilha": "?"
+            },
+            "player_starts_round": True,
+            "player_starts_hand": True,
+            "pending_truco": None,
+            "round_results": []
+        }
+
+
+def _get_truco_name(value: int, controller) -> str:
+    """Get the human-readable name for a truco value."""
+    try:
+        truco = getattr(controller, "truco", None)
+        if truco and hasattr(truco, "get_truco_name"):
+            return truco.get_truco_name(value)
+    except Exception:
+        pass
+    
+    # Fallback names
+    names = {1: "Normal", 3: "Truco", 6: "Seis", 9: "Nove", 12: "Doze"}
+    return names.get(value, f"Valor {value}")
 
 
 def play_card(controller, index: int) -> Dict:

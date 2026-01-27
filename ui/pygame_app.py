@@ -13,6 +13,7 @@ import sys
 from typing import List, Optional
 from config import GameConfig
 from ui.text import TextManager
+from ui.input_handler import InputHandler
 
 
 class PygameApp:
@@ -37,6 +38,11 @@ class PygameApp:
         self.controller = None  # Will be set by caller
         # Text manager for localization
         self.text_manager = TextManager(GameConfig.DEFAULT_LANGUAGE)
+        # Input handler
+        self.input_handler = InputHandler(self)
+        # Register global shortcuts
+        self.input_handler.register_global_key(pygame.K_q, self._quit)
+        self.input_handler.register_global_key(pygame.K_ESCAPE, self._go_back)
         
     def push_scene(self, scene) -> None:
         """Push a new scene onto the stack."""
@@ -70,20 +76,20 @@ class PygameApp:
     def handle_events(self) -> None:
         """Handle Pygame events."""
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-                return
-                
-            # Global quit command
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_q:
-                    self.running = False
-                    return
-            
-            # Pass event to current scene
-            current_scene = self.get_current_scene()
-            if current_scene:
-                current_scene.handle_event(event)
+            self.input_handler.process_event(event)
+
+    def _quit(self) -> None:
+        """Quit the application."""
+        self.running = False
+
+    def _go_back(self) -> None:
+        """Global ESC: go back to previous scene or menu."""
+        if len(self.scene_stack) > 1:
+            self.pop_scene()
+        else:
+            # If only one scene, try to go to menu
+            from ui.scenes.menu_scene import MenuScene
+            self.replace_scene(MenuScene(self))
     
     def update(self, delta_time: float) -> None:
         """Update game state."""

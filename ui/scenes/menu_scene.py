@@ -4,6 +4,7 @@ Menu Scene - Main menu with game options.
 
 import pygame
 from ui.scenes.base_scene import BaseScene
+from ui.widgets import Button
 from config import GameConfig
 
 
@@ -26,10 +27,10 @@ class MenuScene(BaseScene):
         
         tm = self.app.text_manager
         self.buttons = [
-            {"label": tm.get_text("menu.play"), "rect": pygame.Rect(button_x, 200, button_width, button_height), "action": "play", "hovered": False},
-            {"label": tm.get_text("menu.settings"), "rect": pygame.Rect(button_x, 280, button_width, button_height), "action": "settings", "hovered": False},
-            {"label": tm.get_text("menu.tutorial"), "rect": pygame.Rect(button_x, 360, button_width, button_height), "action": "tutorial", "hovered": False},
-            {"label": tm.get_text("menu.quit"), "rect": pygame.Rect(button_x, 440, button_width, button_height), "action": "quit", "hovered": False},
+            Button(tm.get_text("menu.play"), pygame.Rect(button_x, 200, button_width, button_height), "play"),
+            Button(tm.get_text("menu.settings"), pygame.Rect(button_x, 280, button_width, button_height), "settings"),
+            Button(tm.get_text("menu.tutorial"), pygame.Rect(button_x, 360, button_width, button_height), "tutorial"),
+            Button(tm.get_text("menu.quit"), pygame.Rect(button_x, 440, button_width, button_height), "quit"),
         ]
         
     def on_exit(self) -> None:
@@ -39,13 +40,15 @@ class MenuScene(BaseScene):
     def handle_event(self, event: pygame.event.Event) -> None:
         """Handle menu events."""
         if event.type == pygame.MOUSEBUTTONDOWN:
-            mouse_pos = event.pos
             for button in self.buttons:
-                if button["rect"].collidepoint(mouse_pos):
-                    self._handle_button_click(button["action"])
+                if button.handle_event(event):
+                    self._handle_button_click(button.action)
         elif event.type == pygame.KEYDOWN:
-            # Placeholder for keyboard shortcuts
-            pass
+            # Optional keyboard shortcuts: 1-4 correspond to buttons
+            if event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                idx = event.key - pygame.K_1
+                if 0 <= idx < len(self.buttons):
+                    self._handle_button_click(self.buttons[idx].action)
     
     def _handle_button_click(self, action: str) -> None:
         """Handle button click actions."""
@@ -64,7 +67,7 @@ class MenuScene(BaseScene):
         """Update menu scene (track hover state)."""
         mouse_pos = pygame.mouse.get_pos()
         for button in self.buttons:
-            button["hovered"] = button["rect"].collidepoint(mouse_pos)
+            button.update(mouse_pos)
     
     def render(self, surface: pygame.Surface) -> None:
         """Render the menu scene."""
@@ -79,10 +82,4 @@ class MenuScene(BaseScene):
         
         # Draw buttons
         for button in self.buttons:
-            color = GameConfig.COLOR_BUTTON_HOVER if button["hovered"] else GameConfig.COLOR_PRIMARY
-            pygame.draw.rect(surface, color, button["rect"], 2)
-            
-            # Draw button text
-            text = self.font_button.render(button["label"], True, color)
-            text_rect = text.get_rect(center=button["rect"].center)
-            surface.blit(text, text_rect)
+            button.draw(surface, self.font_button)

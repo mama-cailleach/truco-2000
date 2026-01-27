@@ -11,8 +11,6 @@ This is the central conductor of the game, keeping all modules in sync.
 
 from game_core import GameCore
 from truco_logic import TrucoLogic
-from ui.display import UIDisplay
-from ui.input import InputHandler
 from ui.ascii_art import ASCIIArt
 from config import GameConfig
 from utils import safe_exit
@@ -29,8 +27,247 @@ class GameController:
         self.core = GameCore()
         self.truco = TrucoLogic()
         self.ascii_art = ASCIIArt()
-        self.ui = UIDisplay(self.ascii_art, screen_width=self.config.SCREEN_WIDTH)
-        self.input = InputHandler(self.ui)
+        # Note: Old UI modules (ui.display, ui.input) removed for Pygame refactor
+        # Pygame app manages its own UI through scenes and renderer
+        
+        # Pygame-specific state
+        self.player_hand = []
+        self.opponent_hand = []
+        self.carta_vira = None
+        self.manilha = None
+        self.round_results = []
+        self.current_round = 0
+        self.played_cards = {"player": None, "opponent": None}
+        self.hand_active = False
+        
+    def start_new_hand(self):
+        """Initialize a new hand for Pygame UI."""
+        self.core.reiniciar_baralho()
+        self.truco.reset_truco_state()
+        self.core.player_starts_round = self.core.player_starts_hand
+        self.carta_vira, self.manilha = self.core.determinar_manilha()
+        self.player_hand = self.core.distribuir_cartas(self.config.CARDS_PER_HAND)
+        self.opponent_hand = self.core.distribuir_cartas(self.config.CARDS_PER_HAND)
+        self.round_results = []
+        self.current_round = 1
+        self.played_cards = {"player": None, "opponent": None}
+        self.hand_active = True
+        
+    def play_player_card(self, card_index: int):
+        """
+        Player plays a card. Returns updated game state.
+        Non-blocking version for Pygame UI.
+        """
+        if not self.hand_active or card_index >= len(self.player_hand):
+            return self.get_snapshot()
+        
+        # Player plays card
+        self.played_cards["player"] = self.player_hand.pop(card_index)
+        return self.get_snapshot()
+    
+    def play_opponent_card(self):
+        """
+        Opponent plays a card. Returns updated game state.
+        Uses simple AI (first card for now).
+        """
+        if not self.hand_active or not self.opponent_hand:
+            return self.get_snapshot()
+        
+        # Simple AI: play first card (can be enhanced later)
+        self.played_cards["opponent"] = self.opponent_hand.pop(0)
+        return self.get_snapshot()
+    
+    def resolve_round(self):
+        """
+        Resolve the current round after both players have played cards.
+        Returns updated game state with round winner.
+        """
+        if not self.played_cards["player"] or not self.played_cards["opponent"]:
+            return self.get_snapshot()
+        
+        try:
+            # Determine round winner
+            player_card = self.played_cards["player"]
+            opponent_card = self.played_cards["opponent"]
+            
+            winner = self.core.vencedor_rodada(
+                player_card, opponent_card, self.manilha
+            )
+            
+            # Track result
+            if winner == "Empate":
+                self.round_results.append("Empate")
+            elif winner == "Jogador":
+                self.round_results.append("Jogador")
+                self.core.player_starts_round = True
+            else:
+                self.round_results.append("Oponente")
+                self.core.player_starts_round = False
+            
+            # Clear played cards
+            self.played_cards = {"player": None, "opponent": None}
+            
+            # Check if hand is over
+            # check_hand_winner needs: round number, results, player wins, opponent wins, first winner
+            # For now, calculate wins from results
+            vitorias_jogador = self.round_results.count("Jogador")
+            vitorias_oponente = self.round_results.count("Oponente")
+            primeira_vitoria = None
+            for result in self.round_results:
+                if result != "Empate":
+                    primeira_vitoria = result
+                    break
+            
+            rodada_number = len(self.round_results) - 1  # 0-indexed
+            end_hand, winner_message = self.core.check_hand_winner(
+                rodada_number,  # current round (0, 1, or 2)
+                self.round_results,
+                vitorias_jogador,
+                vitorias_oponente,
+                primeira_vitoria
+            )
+            
+            if end_hand:
+                # Determine who won
+                if vitorias_jogador > vitorias_oponente:
+                    hand_winner = "Jogador"
+                elif vitorias_oponente > vitorias_jogador:
+                    hand_winner = "Oponente"
+                else:
+                    # Tied, use primeira_vitoria
+                    hand_winner = primeira_vitoria if primeira_vitoria else "Jogador"
+                
+                # Award points
+                points = self.truco.current_hand_value
+                if hand_winner == "Jogador":
+                    self.core.pontos_jogador += points
+                    self.core.player_starts_hand = True
+                else:
+                    self.core.pontos_oponente += points
+                    self.core.player_starts_hand = False
+                
+                self.hand_active = False
+            else:
+                # Continue to next round
+                self.current_round += 1
+            
+            return self.get_snapshot()
+        except Exception as e:
+            print(f"[ERROR] resolve_round failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return self.get_snapshot()
+    
+    def call_truco(self, caller: str) -> dict:
+        """
+        Caller initiates a truco request.
+        
+        Args:
+            caller: "Jogador" or "Oponente"
+            
+        Returns:
+            dict: Updated snapshot with pending_truco information
+        """
+        if not self.truco.can_raise_truco(caller):
+            # Cannot raise, return current state
+            return self.get_snapshot()
+        
+        next_value = self.truco.get_next_truco_value()
+        if next_value is None:
+            # Already at max
+            return self.get_snapshot()
+        
+        # Mark as pending for UI to handle
+        snapshot = self.get_snapshot()
+        snapshot["pending_truco"] = {
+            "caller": caller,
+            "value": next_value,
+            "name": self.truco.get_truco_name(next_value),
+            "can_reraise": next_value < 12
+        }
+        return snapshot
+    
+    def respond_to_truco(self, response: str, caller: str, value: int) -> dict:
+        """
+        Respond to a truco call.
+        
+        Args:
+            response: "accept", "run", or "reraise"
+            caller: Who called the truco
+            value: The truco value that was called
+            
+        Returns:
+            dict: Updated snapshot
+        """
+        responder = "Oponente" if caller == "Jogador" else "Jogador"
+        
+        if response == "accept":
+            # Accept the truco
+            self.truco.current_hand_value = value
+            self.truco.last_raiser = caller
+            self.truco.last_accepted_value = value
+            return self.get_snapshot()
+        
+        elif response == "run":
+            # Run away - hand ends, caller wins the current hand value
+            points = self.truco.current_hand_value
+            if caller == "Jogador":
+                self.core.pontos_jogador += points
+                self.core.player_starts_hand = True
+            else:
+                self.core.pontos_oponente += points
+                self.core.player_starts_hand = False
+            
+            self.hand_active = False
+            snapshot = self.get_snapshot()
+            snapshot["truco_result"] = {
+                "winner": caller,
+                "action": "run",
+                "points": points
+            }
+            return snapshot
+        
+        elif response == "reraise":
+            # Reraise - call truco again from responder's side
+            return self.call_truco(responder)
+        
+        return self.get_snapshot()
+    
+    def ai_truco_response(self, value: int) -> str:
+        """
+        Get AI response to a truco call.
+        
+        Args:
+            value: The truco value being proposed
+            
+        Returns:
+            str: "accept", "run", or "reraise"
+        """
+        return self.truco.get_opponent_truco_response(value)
+    
+    def get_snapshot(self):
+        """
+        Return current game state as a dictionary for Pygame UI.
+        """
+        return {
+            "player_hand": self.player_hand.copy(),
+            "opponent_hand": self.opponent_hand.copy(),
+            "opponent_card_count": len(self.opponent_hand),
+            "carta_vira": self.carta_vira,
+            "manilha": self.manilha,
+            "round_results": self.round_results.copy(),
+            "current_round": self.current_round,
+            "played": self.played_cards.copy(),
+            "scores": {
+                "player": self.core.pontos_jogador,
+                "opponent": self.core.pontos_oponente
+            },
+            "current_hand_value": self.truco.current_hand_value,
+            "player_starts_round": self.core.player_starts_round,
+            "player_starts_hand": self.core.player_starts_hand,
+            "hand_active": self.hand_active,
+            "opponent_name": "INIT-RAM"
+        }
 
     def start_game(self):
         """Main game loop function."""
