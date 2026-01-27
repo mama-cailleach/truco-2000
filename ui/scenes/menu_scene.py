@@ -24,11 +24,12 @@ class MenuScene(BaseScene):
         button_height = 50
         button_x = (self.app.width - button_width) // 2
         
+        tm = self.app.text_manager
         self.buttons = [
-            {"label": "JOGAR", "rect": pygame.Rect(button_x, 200, button_width, button_height), "action": "play", "hovered": False},
-            {"label": "CONFIGURAÇÕES", "rect": pygame.Rect(button_x, 280, button_width, button_height), "action": "settings", "hovered": False},
-            {"label": "TUTORIAL", "rect": pygame.Rect(button_x, 360, button_width, button_height), "action": "tutorial", "hovered": False},
-            {"label": "SAIR", "rect": pygame.Rect(button_x, 440, button_width, button_height), "action": "quit", "hovered": False},
+            {"label": tm.get_text("menu.play"), "rect": pygame.Rect(button_x, 200, button_width, button_height), "action": "play", "hovered": False},
+            {"label": tm.get_text("menu.settings"), "rect": pygame.Rect(button_x, 280, button_width, button_height), "action": "settings", "hovered": False},
+            {"label": tm.get_text("menu.tutorial"), "rect": pygame.Rect(button_x, 360, button_width, button_height), "action": "tutorial", "hovered": False},
+            {"label": tm.get_text("menu.quit"), "rect": pygame.Rect(button_x, 440, button_width, button_height), "action": "quit", "hovered": False},
         ]
         
     def on_exit(self) -> None:
@@ -68,7 +69,11 @@ class MenuScene(BaseScene):
     def render(self, surface: pygame.Surface) -> None:
         """Render the menu scene."""
         # Draw title
-        title_text = self.font_title.render("TRUCO 2000", True, GameConfig.COLOR_PRIMARY)
+        title_text = self.font_title.render(
+            self.app.text_manager.get_text("welcome.title"),
+            True,
+            GameConfig.COLOR_PRIMARY
+        )
         title_rect = title_text.get_rect(center=(self.app.width // 2, 80))
         surface.blit(title_text, title_rect)
         

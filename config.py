@@ -71,7 +71,12 @@ class GameConfig:
         6: "Seis",
         9: "Nove",
         12: "Doze"
-    }
+    
+    # Internationalization (i18n)
+    DEFAULT_LANGUAGE = "pt_br"
+    SUPPORTED_LANGUAGES = ["pt_br", "en_us"]
+    AUTO_DETECT_LANGUAGE = False
+
     
     # Card values (for sorting and comparison)
     CARD_RANKS = ['4', '5', '6', '7', 'Q', 'J', 'K', 'A', '2', '3']

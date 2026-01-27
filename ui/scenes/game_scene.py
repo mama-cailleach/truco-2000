@@ -41,13 +41,17 @@ class GameScene(BaseScene):
     def render(self, surface: pygame.Surface) -> None:
         """Render the game scene."""
         # Draw title
-        title_text = self.font_title.render("TRUCO 2000 - Jogo", True, GameConfig.COLOR_PRIMARY)
+        title_text = self.font_title.render(
+            self.app.text_manager.get_text("game.title"),
+            True,
+            GameConfig.COLOR_PRIMARY
+        )
         title_rect = title_text.get_rect(center=(self.app.width // 2, 40))
         surface.blit(title_text, title_rect)
         
         # Draw placeholder text
         placeholder = self.font_normal.render(
-            "Game scene - Phase 3+ implementation",
+            self.app.text_manager.get_text("game.placeholder"),
             True,
             GameConfig.COLOR_TEXT
         )
@@ -55,6 +59,10 @@ class GameScene(BaseScene):
         surface.blit(placeholder, placeholder_rect)
         
         # Draw escape hint
-        hint = self.font_normal.render("ESC para voltar ao menu", True, GameConfig.COLOR_TEXT_SECONDARY)
+        hint = self.font_normal.render(
+            self.app.text_manager.get_text("game.esc_hint"),
+            True,
+            GameConfig.COLOR_TEXT_SECONDARY
+        )
         hint_rect = hint.get_rect(center=(self.app.width // 2, self.app.height - 40))
         surface.blit(hint, hint_rect)

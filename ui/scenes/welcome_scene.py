@@ -45,13 +45,17 @@ class WelcomeScene(BaseScene):
         pygame.draw.rect(surface, GameConfig.COLOR_PRIMARY, (x, y, width, height), 2)
         
         # Draw title
-        title_text = self.font_title.render("TRUCO 2000", True, GameConfig.COLOR_PRIMARY)
+        title_text = self.font_title.render(
+            self.app.text_manager.get_text("welcome.title"),
+            True,
+            GameConfig.COLOR_PRIMARY
+        )
         title_rect = title_text.get_rect(center=(self.app.width // 2, y + 80))
         surface.blit(title_text, title_rect)
         
         # Draw instruction
         instruction_text = self.font_normal.render(
-            "Pressione qualquer tecla para continuar...",
+            self.app.text_manager.get_text("welcome.prompt"),
             True,
             GameConfig.COLOR_TEXT
         )

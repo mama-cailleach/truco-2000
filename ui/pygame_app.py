@@ -12,6 +12,7 @@ import pygame
 import sys
 from typing import List, Optional
 from config import GameConfig
+from ui.text import TextManager
 
 
 class PygameApp:
@@ -34,6 +35,8 @@ class PygameApp:
         self.running = True
         self.scene_stack: List = []  # Stack of scenes
         self.controller = None  # Will be set by caller
+        # Text manager for localization
+        self.text_manager = TextManager(GameConfig.DEFAULT_LANGUAGE)
         
     def push_scene(self, scene) -> None:
         """Push a new scene onto the stack."""
