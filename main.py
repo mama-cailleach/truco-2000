@@ -1,8 +1,14 @@
-# main.py
-from game_controller import GameController
+#!/usr/bin/env python3
+"""
+Truco 2000 - Main Entry Point
+
+Launches the Pygame version of the game.
+"""
+
+from ui.pygame_app import main
 
 if __name__ == "__main__":
-    game = GameController()
-    game.start_game()
+    main()
+
 
 

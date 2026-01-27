@@ -20,7 +20,32 @@ class GameConfig:
     making it easy to adjust settings or load them from files in the future.
     """
     
-    # Display settings
+    # Pygame Window Settings
+    WINDOW_WIDTH = 800
+    WINDOW_HEIGHT = 600
+    WINDOW_TITLE = "Truco 2000"
+    FPS = 60
+    
+    # Pygame Colors (RGB)
+    COLOR_BACKGROUND = (13, 2, 8)  # Dark purple
+    COLOR_PRIMARY = (0, 255, 65)  # Bright green
+    COLOR_SECONDARY = (0, 143, 17)  # Dark green
+    COLOR_ACCENT = (0, 59, 0)  # Very dark green
+    COLOR_TEXT = (0, 255, 65)  # Bright green
+    COLOR_TEXT_SECONDARY = (200, 200, 200)  # Light gray
+    COLOR_BUTTON_HOVER = (0, 200, 50)  # Dim green
+    COLOR_BUTTON_PRESSED = (0, 150, 30)  # Darker green
+    COLOR_ERROR = (255, 50, 50)  # Red
+    COLOR_SUCCESS = (50, 255, 50)  # Bright green
+    
+    # Font Settings
+    FONT_NAME = "Arial"  # System default; can be overridden by asset
+    FONT_SIZE_TITLE = 36
+    FONT_SIZE_LARGE = 24
+    FONT_SIZE_NORMAL = 18
+    FONT_SIZE_SMALL = 12
+    
+    # Display settings (legacy CLI compatibility)
     SCREEN_WIDTH = 120
     SIDEBAR_WIDTH = 38
     
@@ -31,6 +56,7 @@ class GameConfig:
     MESSAGE_PAUSE_LONG = 5
     CARD_REVEAL_PAUSE = 5
     ROUND_RESULT_PAUSE = 3
+    OPPONENT_THINK_DELAY = 0.6  # How long opponent 'thinks' before playing
     
     # Game rules
     WINNING_SCORE = 12
