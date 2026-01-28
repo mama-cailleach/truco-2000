@@ -116,9 +116,15 @@ class PygameApp:
             while self.running and self.scene_stack:
                 delta_time = self.clock.tick(GameConfig.FPS) / 1000.0
                 
-                self.handle_events()
-                self.update(delta_time)
-                self.render()
+                try:
+                    self.handle_events()
+                    self.update(delta_time)
+                    self.render()
+                except Exception as e:
+                    print(f"[ERROR] Exception in game loop: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Don't quit on error, keep running
         finally:
             self.cleanup()
     

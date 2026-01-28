@@ -42,18 +42,35 @@
 - Update GameScene to display dealt hand
 - **Result**: Game state rendering working, hand visible
 
-### Phase 4 — Interactive Card Play & Truco Negotiation
+### ✅ Phase 4 — Interactive Card Play & Truco Negotiation
+**Status**: COMPLETED
 - Wire card click events to play cards
 - Implement card selection and highlighting
 - Create truco negotiation UI (Accept/Raise/Flee)
 - Integrate opponent AI via adapter
 - **Result**: Full hand gameplay working
 
-### Phase 5 — Match Flow & Results Screens
-- Create `ui/scenes/results_scene.py`
-- Implement match win conditions
-- Add hand-to-hand auto-dealing
-- Track scores and detect match completion
+### ✅ Phase 4.5 — Full Truco Escalation & State Management
+**Status**: COMPLETED
+- Separate player-initiated vs opponent-initiated truco calls
+- Implement opponent random truco (15% before playing card)
+- Support full escalation chain: Truco(3) → Seis(6) → Nove(9) → Doze(12)
+- Fix state management (truco value resets correctly on new hands)
+- All truco flows tested and working
+- **Result**: Complete bidirectional truco negotiation with proper state reset
+
+### ⏭️ Phase 5 — Match Flow & Results Screens
+**Status**: IN PROGRESS
+- Create `ui/scenes/results_scene.py` with hand & match results display
+- Implement match win condition (first to 12 points)
+- Auto-deal new hands when hand ends
+- Track cumulative scores across hands
+- Implement "Play Again" / "Back to Menu" transitions
+- Ensure proper hand state reset (truco, cards, player_starts flags)
+- **Deliverables**: 
+  - Results screen showing hand winner and points awarded
+  - Match completion detection and game over screen
+  - Smooth hand-to-hand flow with automatic dealing
 - **Result**: Complete matches playable start to finish
 
 ### Phase 6 — Visual Polish & Animations (Optional)

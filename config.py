@@ -39,6 +39,7 @@ class GameConfig:
     COLOR_BUTTON_PRESSED = (0, 150, 30)  # Darker green
     COLOR_ERROR = (255, 50, 50)  # Red
     COLOR_DANGER = (255, 80, 80)  # Light red
+    COLOR_WARNING = (255, 200, 0)  # Yellow/orange
     COLOR_SUCCESS = (50, 255, 50)  # Bright green
     
     # Font Settings
