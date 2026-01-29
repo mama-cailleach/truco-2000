@@ -35,6 +35,7 @@ class GameScene(BaseScene):
         
         # Track card displays for click detection (will be populated by renderer)
         self.card_displays = []
+        self.button_rects = {}  # Button click detection
         
         # Game flow state
         self.selected_card_index = None
@@ -42,6 +43,7 @@ class GameScene(BaseScene):
         self.waiting_for_ai_truco_response = False
         self.showing_player_truco_call = False  # Show "Você pediu Truco"
         self.showing_ai_truco_result = False  # Show AI decision result
+        self.showing_opponent_fugir = False
         self.showing_round_result = False
         self.result_timer = 0
         self.round_result_text = ""
@@ -111,6 +113,13 @@ class GameScene(BaseScene):
         
         elif event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Left click
+                # Check if user clicked on a button first
+                mouse_pos = event.pos
+                for button_name, button_rect in self.button_rects.items():
+                    if button_rect.collidepoint(mouse_pos):
+                        self._handle_button_click(button_name)
+                        return
+                
                 # Don't allow card clicks if waiting or showing results or during truco
                 if (self.waiting_for_opponent or self.showing_round_result or 
                     self.showing_player_truco_call or self.showing_ai_truco_result):
@@ -173,7 +182,32 @@ class GameScene(BaseScene):
             self.waiting_for_opponent = True
     
     def _opponent_plays(self) -> None:
-        """Opponent plays their card."""
+        """Opponent plays their card or decides to fugir."""
+        # Check if opponent should fugir (give up hand) because they're losing
+        vitorias_jogador = self.snapshot.get("round_results", []).count("Jogador")
+        vitorias_oponente = self.snapshot.get("round_results", []).count("Oponente")
+        
+        if self.app.controller.truco.should_opponent_fugir(None, None, vitorias_jogador, vitorias_oponente):
+            # Opponent gives up the hand
+            print("[DEBUG] Opponent decided to fugir!")
+            hand_results = self.app.controller.opponent_fugir()
+            
+            # Check if match is over
+            match_info = self.app.controller.check_match_winner()
+            match_active = not match_info['match_over']
+
+            # Store results for delayed transition
+            self.pending_hand_results = {
+                "hand_winner": hand_results['hand_winner'],
+                "points_awarded": hand_results['points_awarded'],
+                "match_active": match_active
+            }
+
+            # Show fugir overlay
+            self.showing_opponent_fugir = True
+            self.result_timer = 2.0
+            return
+        
         # Random chance for opponent to call truco before playing
         import random
         if random.random() < 0.15:  # 15% chance
@@ -298,8 +332,10 @@ class GameScene(BaseScene):
                 points = truco_result.get("points", self.app.controller.truco.current_hand_value)
                 
                 # Determine match status
-                scores = self.snapshot.get("scores", {})
-                match_active = scores.get("player") < 12 and scores.get("opponent") < 12
+                sidebar = self.snapshot.get("sidebar", {})
+                player_score = sidebar.get("player_score", 0)
+                opponent_score = sidebar.get("opponent_score", 0)
+                match_active = player_score < 12 and opponent_score < 12
                 
                 print(f"[DEBUG] Hand winner: {winner}, Points: {points}")
                 self._show_hand_results(winner, points, match_active)
@@ -344,10 +380,12 @@ class GameScene(BaseScene):
         if not self.snapshot.get("hand_active"):
             print("[DEBUG] Hand ended, preparing to show results...")
             # Hand ended - calculate hand winner and points
-            scores = self.snapshot.get("scores", {})
+            sidebar = self.snapshot.get("sidebar", {})
+            player_score = sidebar.get("player_score", 0)
+            opponent_score = sidebar.get("opponent_score", 0)
             round_results = self.snapshot.get("round_results", [])
             
-            print(f"[DEBUG] Scores: Player={scores.get('player')}, Opponent={scores.get('opponent')}")
+            print(f"[DEBUG] Scores: Player={player_score}, Opponent={opponent_score}")
             
             # Determine hand winner
             vitorias_jogador = round_results.count("Jogador")
@@ -369,10 +407,13 @@ class GameScene(BaseScene):
             # Points awarded is the truco value
             points_awarded = self.app.controller.truco.current_hand_value
             
-            # Check if match is over
-            match_active = scores.get("player") < 12 and scores.get("opponent") < 12
+            # Check if match is over using controller method
+            match_info = self.app.controller.check_match_winner()
+            match_active = not match_info['match_over']
             
             print(f"[DEBUG] Hand winner: {hand_winner}, Points: {points_awarded}, Match active: {match_active}")
+            if match_info['match_over']:
+                print(f"[DEBUG] MATCH OVER! Winner: {match_info['winner']}, Final scores: Player {match_info['player_score']}, Opponent {match_info['opponent_score']}")
             
             # Store results data for transition after round result display
             self.pending_hand_results = {
@@ -493,8 +534,10 @@ class GameScene(BaseScene):
                             points = truco_result.get("points", self.app.controller.truco.current_hand_value)
                             
                             # Determine match status
-                            scores = self.snapshot.get("scores", {})
-                            match_active = scores.get("player") < 12 and scores.get("opponent") < 12
+                            sidebar = self.snapshot.get("sidebar", {})
+                            player_score = sidebar.get("player_score", 0)
+                            opponent_score = sidebar.get("opponent_score", 0)
+                            match_active = player_score < 12 and opponent_score < 12
                             
                             print(f"[DEBUG] Hand winner: {winner}, Points: {points}")
                             self._show_hand_results(winner, points, match_active)
@@ -536,12 +579,27 @@ class GameScene(BaseScene):
                 battle = self.snapshot.get("battle", {})
                 if not self.snapshot.get("player_starts_round") and not battle.get("opponent_card"):
                     self.waiting_for_opponent = True
+
+        # Handle opponent fugir display timer
+        if self.showing_opponent_fugir:
+            self.result_timer -= delta_time
+            if self.result_timer <= 0:
+                self.showing_opponent_fugir = False
+                # Transition to results screen
+                if self.pending_hand_results:
+                    self._show_hand_results(
+                        self.pending_hand_results['hand_winner'],
+                        self.pending_hand_results['points_awarded'],
+                        self.pending_hand_results['match_active']
+                    )
+                    self.pending_hand_results = None
+            return
     
     
     def render(self, surface: pygame.Surface) -> None:
         """Render the game scene."""
-        # Use renderer to draw the entire game state and get card displays
-        self.card_displays = self.renderer.render_game_state(self.snapshot)
+        # Use renderer to draw the entire game state and get card displays and button rects
+        self.card_displays, self.button_rects = self.renderer.render_game_state(self.snapshot)
         
         # Overlay truco if showing
         if self.showing_truco_overlay:
@@ -554,6 +612,10 @@ class GameScene(BaseScene):
         # Overlay AI truco decision if showing
         if self.showing_ai_truco_result:
             self._render_ai_truco_decision_overlay(surface)
+
+        # Overlay opponent fugir if showing
+        if self.showing_opponent_fugir:
+            self._render_opponent_fugir_overlay(surface)
         
         # Overlay round result if showing
         if self.showing_round_result:
@@ -616,3 +678,59 @@ class GameScene(BaseScene):
         text_surface = font_large.render(text, True, color)
         text_rect = text_surface.get_rect(center=(self.app.width // 2, self.app.height // 2))
         surface.blit(text_surface, text_rect)
+
+    def _render_opponent_fugir_overlay(self, surface: pygame.Surface) -> None:
+        """Render opponent fugir overlay."""
+        # Semi-transparent overlay
+        overlay = pygame.Surface((self.app.width, self.app.height))
+        overlay.set_alpha(180)
+        overlay.fill((0, 0, 0))
+        surface.blit(overlay, (0, 0))
+
+        # Fugir text
+        font_large = pygame.font.Font(None, GameConfig.FONT_SIZE_TITLE)
+        text_surface = font_large.render(
+            "Oponente Fugiu!",
+            True,
+            GameConfig.COLOR_DANGER
+        )
+        text_rect = text_surface.get_rect(center=(self.app.width // 2, self.app.height // 2))
+        surface.blit(text_surface, text_rect)
+    
+    def _handle_button_click(self, button_name: str) -> None:
+        """Handle clicks on game control buttons."""
+        if button_name == "truco":
+            # Simulate pressing T key
+            self._player_calls_truco()
+        elif button_name == "fugir":
+            # Player gives up the hand - opponent gets truco value points
+            self._player_fugir()
+        elif button_name == "menu":
+            # Go back to menu
+            from ui.scenes.menu_scene import MenuScene
+            self.app.replace_scene(MenuScene(self.app))
+        elif button_name == "opções":
+            # TODO: Implement settings/options scene
+            print("[DEBUG] Opções button clicked - not yet implemented")
+        elif button_name == "sair":
+            # Quit the game
+            from utils import safe_exit
+            safe_exit()
+    
+    def _player_fugir(self) -> None:
+        """Handle player giving up (fugir) the hand."""
+        # Get hand results from controller
+        hand_results = self.app.controller.player_fugir()
+        
+        # Check if match is over
+        match_info = self.app.controller.check_match_winner()
+        match_active = not match_info['match_over']
+        
+        print(f"[DEBUG] Player fugiu! Hand winner: {hand_results['hand_winner']}, Points: {hand_results['points_awarded']}, Match active: {match_active}")
+        
+        # Transition to results scene
+        self._show_hand_results(
+            hand_results['hand_winner'],
+            hand_results['points_awarded'],
+            match_active
+        )

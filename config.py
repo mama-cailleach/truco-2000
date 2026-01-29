@@ -47,7 +47,7 @@ class GameConfig:
     FONT_SIZE_TITLE = 36
     FONT_SIZE_LARGE = 24
     FONT_SIZE_NORMAL = 18
-    FONT_SIZE_SMALL = 12
+    FONT_SIZE_SMALL = 14
     
     # Display settings (legacy CLI compatibility)
     SCREEN_WIDTH = 120

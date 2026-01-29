@@ -59,8 +59,8 @@
 - All truco flows tested and working
 - **Result**: Complete bidirectional truco negotiation with proper state reset
 
-### ⏭️ Phase 5 — Match Flow & Results Screens
-**Status**: IN PROGRESS
+### ✅ Phase 5 — Match Flow & Results Screens
+**Status**: COMPLETED
 - Create `ui/scenes/results_scene.py` with hand & match results display
 - Implement match win condition (first to 12 points)
 - Auto-deal new hands when hand ends

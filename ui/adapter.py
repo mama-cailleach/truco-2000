@@ -149,8 +149,10 @@ def snapshot_from_controller(controller) -> Dict:
             "sidebar": {
                 "player_score": snap.get("scores", {}).get("player", 0),
                 "opponent_score": snap.get("scores", {}).get("opponent", 0),
+                "opponent_name": snap.get("opponent_name", "INIT-RAM"),
                 "truco_value": snap.get("current_hand_value", 1),
                 "truco_name": _get_truco_name(snap.get("current_hand_value", 1), controller),
+                "vira": snap.get("carta_vira", "?"),
                 "manilha": snap.get("manilha", "?")
             },
             
@@ -174,8 +176,10 @@ def snapshot_from_controller(controller) -> Dict:
             "sidebar": {
                 "player_score": 0,
                 "opponent_score": 0,
+                "opponent_name": "INIT-RAM",
                 "truco_value": 1,
                 "truco_name": "Normal",
+                "vira": "?",
                 "manilha": "?"
             },
             "player_starts_round": True,

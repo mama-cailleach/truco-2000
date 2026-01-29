@@ -7,7 +7,7 @@ STRINGS = {
 
     # Menu Scene
     "menu.play": "JOGAR",
-    "menu.settings": "CONFIGURAÇÕES",
+    "menu.settings": "OPÇÕES",
     "menu.tutorial": "TUTORIAL",
     "menu.quit": "SAIR",
 

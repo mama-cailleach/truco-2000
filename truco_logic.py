@@ -235,7 +235,33 @@ class TrucoLogic:
         
         return random.random() < probability
     
-    def update_truco_state(self, new_value, raiser):
+    def should_opponent_fugir(self, opponent_wins, player_wins, vitorias_jogador, vitorias_oponente):
+        """
+        Determine if opponent should give up (fugir) because they're about to lose the hand.
+        
+        Opponent fugirs when they have lost more rounds than they've won and are about to lose.
+        
+        Args:
+            opponent_wins (int): Number of rounds won by opponent so far
+            player_wins (int): Number of rounds won by player so far
+            vitorias_jogador (int): Total player wins
+            vitorias_oponente (int): Total opponent wins
+            
+        Returns:
+            bool: True if opponent should fugir
+        """
+        # Only consider fugir if opponent is losing
+        # Fugir if opponent has fewer wins than player AND opponent has lost at least 1 round
+        if vitorias_oponente < vitorias_jogador and vitorias_oponente == 0:
+            # Opponent lost first round and player has more wins
+            # High chance to fugir to avoid losing more points
+            return random.random() < 0.6  # 60% chance when clearly losing
+        elif vitorias_oponente < vitorias_jogador and vitorias_oponente > 0:
+            # Opponent won a round but is still losing
+            # Lower chance to fugir
+            return random.random() < 0.3  # 30% chance
+        
+        return False
         """
         Update the internal truco state when a raise is ACCEPTED.
         

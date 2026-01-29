@@ -52,6 +52,86 @@ class GameController:
         self.current_round = 1
         self.played_cards = {"player": None, "opponent": None}
         self.hand_active = True
+    
+    def check_match_winner(self) -> dict:
+        """
+        Check if either player has reached 12 points (match winner).
+        
+        Returns:
+            dict with keys:
+                - 'match_over': bool (True if someone reached 12 points)
+                - 'winner': str ('Jogador', 'Oponente', or None)
+                - 'player_score': int
+                - 'opponent_score': int
+        """
+        player_score = self.core.pontos_jogador
+        opponent_score = self.core.pontos_oponente
+        
+        match_over = player_score >= 12 or opponent_score >= 12
+        
+        if match_over:
+            winner = "Jogador" if player_score >= 12 else "Oponente"
+        else:
+            winner = None
+        
+        return {
+            'match_over': match_over,
+            'winner': winner,
+            'player_score': player_score,
+            'opponent_score': opponent_score
+        }
+    
+    def player_fugir(self) -> dict:
+        """
+        Player gives up (fugir) the current hand.
+        Opponent wins the hand and gets points equal to current truco value.
+        
+        Returns:
+            dict with hand results (hand_winner, points_awarded, match_active)
+        """
+        # Award points to opponent
+        points = self.truco.current_hand_value
+        self.core.pontos_oponente += points
+        
+        # Opponent starts next hand
+        self.core.player_starts_hand = False
+        
+        # End the hand
+        self.hand_active = False
+        
+        print(f"[DEBUG] Player fugiu! Opponent gets {points} points")
+        
+        return {
+            'hand_winner': 'Oponente',
+            'points_awarded': points,
+            'match_active': self.core.pontos_oponente < 12 and self.core.pontos_jogador < 12
+        }
+    
+    def opponent_fugir(self) -> dict:
+        """
+        Opponent gives up (fugir) the current hand.
+        Player wins the hand and gets points equal to current truco value.
+        
+        Returns:
+            dict with hand results (hand_winner, points_awarded, match_active)
+        """
+        # Award points to player
+        points = self.truco.current_hand_value
+        self.core.pontos_jogador += points
+        
+        # Player starts next hand
+        self.core.player_starts_hand = True
+        
+        # End the hand
+        self.hand_active = False
+        
+        print(f"[DEBUG] Opponent fugiu! Player gets {points} points")
+        
+        return {
+            'hand_winner': 'Jogador',
+            'points_awarded': points,
+            'match_active': self.core.pontos_jogador < 12 and self.core.pontos_oponente < 12
+        }
         
     def play_player_card(self, card_index: int):
         """
